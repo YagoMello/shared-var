@@ -1,5 +1,5 @@
 # Shared Var
-### A std::map on steroids.
+### std::map on steroids.
 
 ## What
 
@@ -75,6 +75,9 @@ shared::bind(vars, 0, 1); // binding 0 and 1
 ```
 
 # How
+## Installation
+Download `shared_var.hpp`, move the file to your project folder and `#include` it.
+
 ## Functions
 | Name                     | Description                                                                                    | Returns               |
 |--------------------------|------------------------------------------------------------------------------------------------|-----------------------|
@@ -98,3 +101,22 @@ shared::bind(vars, 0, 1); // binding 0 and 1
 |`list_type<Key>`| Maps `key` to `info_t<Key>`                     |`std::map<Key, info_t<Key>>`|
 |`bind_codes_t  `| Result of `shared::bind(list, key1, key2)`      |`enum : uint_fast8_t       `|
 |`var_t<T, Key> `| Shared var abstraction, behaves as `T`          |`class<T, Key>             `|
+
+## Var abstraction
+`class shared::var_t<T, Key>`
+
+This class simplifies the shared var manipulation, behaving as the variable itself.
+| Function                  | Description                                                                                    | Returns               |
+|---------------------------|------------------------------------------------------------------------------------------------|-----------------------|
+|`var_t()                  `| Constructs an un-bindable var, similar to a normal var                                         |                       |
+|`var_t(info_t<Key> * info)`| Constructs a bindable var, the constructor used by `shared::make_var`                          |                       |
+|`data()                   `| Reference to the shared var data                                                               | `value_type &`        |
+|`operator value_type &()  `| Converts the object to (a reference of) the shared var                                         | `value_type &`        |
+|`operator =(const value_type & value)`| Assigns a value to the shared var                                                   | `value_type &`        |
+|`operator ->()            `| Access member functions of the shared var                                                      |                       |
+|`info()                   `| Get the shared var `info` pointer                                                              | `info_t<Key> *`       |
+|`get_var_ptr()            `| Get the shared var (data) pointer                                                              | `value_type *`        |
+
+| Public member             | Description                                                                                    | Type                  |
+|---------------------------|------------------------------------------------------------------------------------------------|-----------------------|
+|`value_type               `| Exposes the type of the shared var                                                             | Type, `T`             |
