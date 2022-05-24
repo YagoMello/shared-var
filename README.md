@@ -74,6 +74,34 @@ shared::create<someobj>(vars, 1); // key = 1
 shared::bind(vars, 0, 1); // binding 0 and 1
 ```
 
+### Sharing
+```cpp
+auto cows = shared::make_var<int>(vars, "cows");
+auto dogs = shared::make_var<int>(vars, "cows"); // the var name still "cows"
+
+cows = 5;
+dogs = 8; // cows == 8 too!
+```
+```cpp
+// somewhere in the code
+auto controller = shared::make_var<controller_t>(vars, "main-controller");
+...
+// in other file, function                            The same *vars* list
+//                                                    vvvv
+auto main_controller = shared::make_var<controller_t>(vars, "main-controller");
+// Both controller and main_controller refer to the same variable (same memory address).
+```
+
+### Overriding
+```cpp
+shared::create<int>(vars, "X", 42); // "X" = 42
+shared::create<int>(vars, "X", 84); // "X" = 42, because "X" is already initialized
+
+shared::get<int>(vars, "X") = 37;   // "X" = 37, explicitly setting "X"
+
+shared::create<double>(vars, "X", 3.14); // "X" = 3.14, the old "X" has been deleted
+```
+
 # How
 ## Installation
 Download `shared_var.hpp`, move the file to your project folder and `#include` it.
