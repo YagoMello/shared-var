@@ -4,13 +4,13 @@
 /* Shared Variable Library
  * Author:  Yago T. de Mello
  * e-mail:  yago.t.mello@gmail.com
- * Version: 2.0.0 2022-05-23
+ * Version: 2.0.1 2022-05-24
  * License: Apache 2.0
  * C++20
  */
 
 /*
-Copyright 2021 Yago Teodoro de Mello
+Copyright 2022 Yago Teodoro de Mello
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -65,8 +65,8 @@ struct info_t {
     using allocator_type = std::shared_ptr<void> (*)(const void * ptr_to_value);
     
     std::shared_ptr<void> ptr; // The shared variable (pointer (and type erased))
-    key_type group_id = "";    // The group where the variable is shared
-    key_type key = "";         // This variable name
+    key_type group_id;         // The group where the variable is shared
+    key_type key;              // This variable name
     const std::type_info * type_id; // The shared variable type (RTTI), used for type checking
     allocator_type allocator;  // Allocates memory when called
     std::set<key_type> refs;   // Variables connected to this var
@@ -476,6 +476,12 @@ void isolate(shared::list_type<Key> & ls, const ConvertibleToKey & key) {
         // Then detach nodes
         shared::impl::detach_nodes(ls, info);
     }
+}
+
+// Finds whether an element with the given key exists
+template <typename Key, std::convertible_to<Key> ConvertibleToKey>
+inline bool contains(const shared::list_type<Key> & ls, const ConvertibleToKey & key) {
+    return ls.contains(key);
 }
 
 // Searches the list "ls" then returns a pointer to the shared var
