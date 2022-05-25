@@ -1,5 +1,5 @@
 # Shared Var
-### std::map on steroids.
+### std::map on steroids
 
 ## What
 
@@ -79,8 +79,8 @@ shared::bind(vars, 0, 1); // binding 0 and 1
 auto cows = shared::make_var<int>(vars, "cows");
 auto dogs = shared::make_var<int>(vars, "cows"); // the var name still "cows"
 
-cows = 5;
-dogs = 8; // cows == 8 too!
+cows = 5; // "cows" = 5 -> cows == 5 and dogs == 5
+dogs = 8; // "cows" = 8 -> cows == 8 and dogs == 8
 ```
 ```cpp
 // somewhere in the code
