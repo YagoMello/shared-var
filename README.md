@@ -26,7 +26,7 @@ if(btn) { // the var is updated in real time, because it *is* the same var
 
 ### Variable binding
 ```cpp
-auto diode_p    = shared::make_var<double>(components, "diode +"); // oh look a electrical pin
+auto diode_p    = shared::make_var<double>(components, "diode +"); // oh look an electrical pin
 auto resistor_n = shared::make_var<double>(components, "res -");   // and another pin
 shared::bind(components, "diode +", "res -");                      // lets connect both
 
