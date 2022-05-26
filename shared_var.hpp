@@ -4,7 +4,7 @@
 /* Shared Variable Library
  * Author:  Yago T. de Mello
  * e-mail:  yago.t.mello@gmail.com
- * Version: 2.0.1 2022-05-24
+ * Version: 2.1.0 2022-05-26
  * License: Apache 2.0
  * C++20
  */
@@ -28,9 +28,6 @@ limitations under the License.
 // enum bind_codes_t -> uint_fast8_t
 #include <cinttypes>
 
-// std::convertible_to
-#include <concepts>
-
 // shared::auto_get may throw
 #include <exception>
 
@@ -48,6 +45,9 @@ limitations under the License.
 
 // shared::info_t<Key>::type_id -> std::type_info
 #include <typeinfo>
+
+// std::type_identity
+#include <type_traits>
 
 
 // The lib namespace
@@ -248,10 +248,10 @@ inline const T * info_to_data_ptr(const shared::info_t<Key> & info) {
 
 // Creates a new shared var, stored in the list "ls".
 // A pointer to the shared var info is returned.
-template <typename T, typename Key, std::convertible_to<Key> ConvertibleToKey>
+template <typename T, typename Key>
 inline shared::info_t<Key> * create(
     shared::list_type<Key> & ls, 
-    const ConvertibleToKey & key, 
+    const std::type_identity_t<Key> & key, 
     const T & default_value = T(),
     const bool override = false
 ) {
@@ -322,14 +322,11 @@ enum bind_codes_t : uint_fast8_t {
 };
 
 // Connects two variables, making them share the same memory
-template <
-    typename Key, 
-    std::convertible_to<Key> ConvertibleToKeyL, 
-    std::convertible_to<Key> ConvertibleToKeyR
-> inline shared::bind_codes_t bind(
+template <typename Key>
+inline shared::bind_codes_t bind(
     shared::list_type<Key> & ls, 
-    const ConvertibleToKeyL & key_L, 
-    const ConvertibleToKeyR & key_R
+    const std::type_identity_t<Key> & key_L, 
+    const std::type_identity_t<Key> & key_R
 ) {
     // search for nodes
     auto it_key_L = ls.find(key_L);
@@ -382,14 +379,11 @@ template <
 
 // Disconnects two variables, allocating new memory 
 // but keeping the original value.
-template <
-    typename Key, 
-    std::convertible_to<Key> ConvertibleToKey1, 
-    std::convertible_to<Key> ConvertibleToKey2
-> inline void unbind(
+template <typename Key>
+inline void unbind(
     shared::list_type<Key> & ls, 
-    const ConvertibleToKey1 & key1, 
-    const ConvertibleToKey2 & key2
+    const std::type_identity_t<Key> & key1, 
+    const std::type_identity_t<Key> & key2
 ) {
     // both nodes must exist
     if(!ls.contains(key1) || !ls.contains(key2)) return;
@@ -441,8 +435,11 @@ inline void unbind_all(shared::list_type<Key> & ls) {
 }
 
 // Deletes a variable and removes its references from other variables
-template <typename Key, std::convertible_to<Key> ConvertibleToKey>
-inline void remove(shared::list_type<Key> & ls, const ConvertibleToKey & key) {
+template <typename Key>
+inline void remove(
+    shared::list_type<Key> & ls, 
+    const std::type_identity_t<Key> & key
+) {
     // Search for the var info
     auto it = ls.find(key);
     
@@ -463,8 +460,11 @@ inline void remove_all(shared::list_type<Key> & ls) {
 }
 
 // Breaks all links with other vars
-template <typename Key, std::convertible_to<Key> ConvertibleToKey>
-void isolate(shared::list_type<Key> & ls, const ConvertibleToKey & key) {
+template <typename Key>
+void isolate(
+    shared::list_type<Key> & ls, 
+    const std::type_identity_t<Key> & key
+) {
     // Search for the var info
     auto it = ls.find(key);
     
@@ -479,22 +479,31 @@ void isolate(shared::list_type<Key> & ls, const ConvertibleToKey & key) {
 }
 
 // Finds whether an element with the given key exists
-template <typename Key, std::convertible_to<Key> ConvertibleToKey>
-inline bool contains(const shared::list_type<Key> & ls, const ConvertibleToKey & key) {
+template <typename Key>
+inline bool contains(
+    const shared::list_type<Key> & ls, 
+    const std::type_identity_t<Key> & key
+) {
     return ls.contains(key);
 }
 
 // Searches the list "ls" then returns a pointer to the shared var
 // This pointer is invalidated when the shared-var group is modified
-template <typename T, typename Key, std::convertible_to<Key> ConvertibleToKey>
-inline T * get_ptr(shared::list_type<Key> & ls, const ConvertibleToKey & key) {
+template <typename T, typename Key>
+inline T * get_ptr(
+    shared::list_type<Key> & ls, 
+    const std::type_identity_t<Key> & key
+) {
     return reinterpret_cast<T *>(ls[key].ptr.get());
 }
 
 // Searches the list for the key, if the key is found a copy of the object is returned,
 // else a new object is constructed (but not saved to the shared list)
-template <typename T, typename Key, std::convertible_to<Key> ConvertibleToKey>
-inline T get(shared::list_type<Key> & ls, const ConvertibleToKey & key) {
+template <typename T, typename Key>
+inline T get(
+    shared::list_type<Key> & ls, 
+    const std::type_identity_t<Key> & key
+) {
     T * ptr = shared::get_ptr<T>(ls, key);
     if(ptr != nullptr) {
         return *ptr;
@@ -507,8 +516,11 @@ inline T get(shared::list_type<Key> & ls, const ConvertibleToKey & key) {
 // Searches the list for the key, if the key is found a reference to the object is returned,
 // else a new object is constructed
 // The reference is invalidated when the shared-var group is modified
-template <typename T, typename Key, std::convertible_to<Key> ConvertibleToKey>
-inline T & auto_get(shared::list_type<Key> & ls, const ConvertibleToKey & key) {
+template <typename T, typename Key>
+inline T & auto_get(
+    shared::list_type<Key> & ls, 
+    const std::type_identity_t<Key> & key
+) {
     // Try to find the var
     T * ptr = shared::get_ptr<T>(ls, key);
     
@@ -622,8 +634,12 @@ private:
 // Deletes any variable with the same key but different type.
 // If a variable with the same key and types exists, the var_t
 // will point to the existing var and will not overwrite the value.
-template <typename T, typename Key, std::convertible_to<Key> ConvertibleToKey>
-inline shared::var_t<T, Key> make_var(shared::list_type<Key> & ls, const ConvertibleToKey & key, const T & default_value = T()) {
+template <typename T, typename Key>
+inline shared::var_t<T, Key> make_var(
+    shared::list_type<Key> & ls, 
+    const std::type_identity_t<Key> & key, 
+    const T & default_value = T()
+) {
     shared::info_t<Key> * info = shared::create(ls, key, default_value, true);
     return shared::var_t<T, Key>(info);
 }
