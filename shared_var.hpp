@@ -4,7 +4,7 @@
 /* Shared Variable Library
  * Author:  Yago T. de Mello
  * e-mail:  yago.t.mello@gmail.com
- * Version: 2.1.0 2022-05-26
+ * Version: 2.2.0 2022-05-27
  * License: Apache 2.0
  * C++20
  */
@@ -46,7 +46,7 @@ limitations under the License.
 // shared::info_t<Key>::type_id -> std::type_info
 #include <typeinfo>
 
-// std::type_identity
+// std::type_identity_t<Key>
 #include <type_traits>
 
 
@@ -62,13 +62,15 @@ struct info_t {
     // The "shared var name" type, defaults to std::string but could be anything
     // accepted by std::map.
     using key_type = Key;
-    using allocator_type = std::shared_ptr<void> (*)(const void * ptr_to_value);
+    using allocator_type = std::shared_ptr<void> (*)(void * ptr_to_value);
+    using copier_type = void (*)(void * ptr_to_dest, void * ptr_to_src);
     
     std::shared_ptr<void> ptr; // The shared variable (pointer (and type erased))
     key_type group_id;         // The group where the variable is shared
     key_type key;              // This variable name
     const std::type_info * type_id; // The shared variable type (RTTI), used for type checking
     allocator_type allocator;  // Allocates memory when called
+    copier_type copier;        // Copies the value of another var
     std::set<key_type> refs;   // Variables connected to this var
 };
 
@@ -85,15 +87,33 @@ namespace impl {
 // nodes or un-binding variables.
 // Contains the information needed to allocate and construct variables
 template <typename T>
-inline std::shared_ptr<void> default_allocator(const void * ptr_to_value) {
+inline std::shared_ptr<void> default_allocator(void * ptr_to_value) {
     std::shared_ptr ptr = std::make_shared<T>();
     
     if(ptr_to_value != nullptr) {
-        const T & value = *reinterpret_cast<const T *>(ptr_to_value);
+        const T & value = *reinterpret_cast<T *>(ptr_to_value);
         *ptr = value;
     }
     
     return ptr;
+}
+
+// Copies the value from dest to src.
+// Does not check for nullptrs.
+template <typename T>
+inline void default_copier(void * ptr_to_dest, void * ptr_to_src) {
+    // The src is not const, because "operator =" may not be const.
+    T & src = *reinterpret_cast<T *>(ptr_to_src);
+    T & dest = *reinterpret_cast<T *>(ptr_to_dest);
+    
+    // Assign the value to the destination
+    dest = src;
+}
+
+// Constructs an object of Derived type
+template <typename Base, typename Derived>
+Base * default_builder() {
+    return new Derived;
 }
 
 // Verifies if types are equal
@@ -132,6 +152,7 @@ inline void make_reference(
     new_info.key       = ref_name;
     new_info.ptr       = var_info.ptr;
     new_info.allocator = var_info.allocator;
+    new_info.copier    = var_info.copier;
     
     // Link the new var to the input var
     new_info.refs.insert(var_info.key);
@@ -253,7 +274,7 @@ inline shared::info_t<Key> * create(
     shared::list_type<Key> & ls, 
     const std::type_identity_t<Key> & key, 
     const T & default_value = T(),
-    const bool override = false
+    const bool overwrite = false
 ) {
     // Check if the var already exists
     auto it = ls.find(key);
@@ -281,11 +302,12 @@ inline shared::info_t<Key> * create(
         info.key       = key;
         info.ptr       = data_ptr;
         info.allocator = shared::impl::default_allocator<T>;
+        info.copier    = shared::impl::default_copier<T>;
         
         // Save the new var in the list of vars
         ls[key] = info;
         
-        // And return the address of 
+        // And return the address
         return &ls[key];
     }
     else {
@@ -298,18 +320,106 @@ inline shared::info_t<Key> * create(
             // Types are equal, return existing info
             return &info;
         }
-        else if(override) {
-            // Override is set, and types are not equal
+        else if(overwrite) {
+            // Overwrite is set, and types are not equal
             // Then we should delete the current var
             // And create the new one on its place
             shared::impl::remove(ls, info);
-            return shared::create(ls, key, default_value, override);
+            return shared::create(ls, key, default_value, overwrite);
         }
         else {
-            // Types are different, crap.
+            // Types are different and can't overwrite, crap.
             return nullptr;
         }
     }
+}
+
+// Copies the src var in the src list to the dest var in the dest list.
+// Creates a new dest var if needed.
+template <typename Key>
+inline shared::info_t<Key> * copy(
+    shared::list_type<Key> & ls_src, 
+    shared::list_type<Key> & ls_dest, 
+    const std::type_identity_t<Key> & key_src, 
+    const std::type_identity_t<Key> & key_dest, 
+    const bool overwrite = false
+) {
+    // Check if the original var exists
+    auto it_src = ls_src.find(key_src);
+    
+    // Check if the new var exists
+    auto it_dest = ls_dest.find(key_dest);
+    
+    if(it_src != ls_src.end() && it_dest == ls_dest.end()) {
+        // The src exists and te dest doesn't
+        
+        // The src is just a ref
+        shared::info_t<Key> & info_src = shared::impl::iter_to_info<Key>(it_src);
+        
+        // The dest is a new info to create a new var
+        shared::info_t<Key> info_dest;
+        
+        // Copying some infrmation
+        info_dest.type_id   = info_src.type_id;
+        info_dest.allocator = info_src.allocator;
+        info_dest.copier    = info_src.copier;
+        
+        // Setting some values that are different from the src
+        info_dest.key = key_dest;
+        info_dest.group_id = key_dest;
+        
+        // Allocate the memory and copy the value
+        info_dest.ptr = info_dest.allocator(info_src.ptr.get());
+        
+        // Save the new var in the list of vars
+        ls_dest[key_dest] = info_dest;
+        
+        // And return the address
+        return &ls_dest[key_dest];
+    }
+    else if(it_src != ls_src.end() && it_dest != ls_dest.end()) {
+        // The var exists, but may not be of the same type
+        shared::info_t<Key> & info_src  = shared::impl::iter_to_info<Key>(it_src);
+        shared::info_t<Key> & info_dest = shared::impl::iter_to_info<Key>(it_dest);
+        
+        // We cannot return info pointing to another type,
+        // when accessing woult lead to UB
+        if(shared::impl::are_types_equal(info_src, info_dest)) {
+            // Types are equal, copying values and returning existing info
+            void * src_ptr  = info_src.ptr.get();
+            void * dest_ptr = info_dest.ptr.get();
+            
+            info_src.copier(dest_ptr, src_ptr);
+            return &info_dest;
+        }
+        else if(overwrite) {
+            // Overwrite is set, and types are not equal
+            // Then we should delete the current var
+            // And try to copy the value again
+            shared::impl::remove(ls_dest, info_dest);
+            return shared::copy(ls_src, ls_dest, key_src, key_dest, overwrite);
+        }
+        else {
+            // Types are different and can't overwrite, crap.
+            return nullptr;
+        }
+    }
+    else {
+        // Couldn't the src var, can't do anything.
+        return nullptr;
+    }
+}
+
+// Copies the src var to the dest var.
+// Creates a new dest var if needed.
+template <typename Key>
+inline shared::info_t<Key> * copy(
+    shared::list_type<Key> & ls, 
+    const std::type_identity_t<Key> & key_src, 
+    const std::type_identity_t<Key> & key_dest, 
+    const bool overwrite = false
+) {
+    return shared::copy(ls, ls, key_src, key_dest, overwrite);
 }
 
 // Describes which path shared::bind took when binding variables
@@ -644,6 +754,49 @@ inline shared::var_t<T, Key> make_var(
     return shared::var_t<T, Key>(info);
 }
 
+// Creates a var builder.
+// Deletes any variable with the same key but different type.
+// If a variable with the same key and types exists, the var_t
+// will point to the existing var and will not overwrite the value.
+template <typename Base, typename Derived = Base, typename Key>
+inline shared::var_t<Base * (*)(), Key> make_builder(
+    shared::list_type<Key> & ls, 
+    const std::type_identity_t<Key> & key
+) {
+    using func_ptr_type = Base * (*)();
+    
+    // The new object builder
+    func_ptr_type func_ptr = &shared::impl::default_builder<Base, Derived>;
+    
+    // Create a shared var
+    shared::info_t<Key> * info = shared::create<func_ptr_type>(ls, key, func_ptr, true);
+    
+    // And the var_t
+    return shared::var_t<func_ptr_type, Key>(info);
+}
+
+// If the object builder exists, build an object, otherwise returns a nullptr.
+template <typename Base, typename Key>
+inline Base * safe_build(shared::list_type<Key> & ls, const std::type_identity_t<Key> & key) {
+    using func_ptr_type = Base * (*)();
+    
+    // Search for the builder
+    func_ptr_type * builder_ptr = shared::get_ptr<func_ptr_type>(ls, key);
+    
+    // If builder was found
+    if(builder_ptr != nullptr) {
+        // Assign a better name
+        func_ptr_type builder = *builder_ptr;
+        
+        // Build
+        return builder();
+    }
+    else {
+        return nullptr;
+    }
+}
+
 } // namespace shared
+
 
 #endif // SHARED_VAR_HPP
