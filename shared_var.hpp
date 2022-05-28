@@ -254,7 +254,7 @@ inline void remove(shared::list_type<Key> & ls, shared::info_t<Key> & info) {
 // This pointer is invalidated when the shared-var group is modified
 template <typename T, typename Key>
 inline T * info_to_data_ptr(shared::info_t<Key> & info) {
-    return *reinterpret_cast<T *>(info.ptr.get());
+    return reinterpret_cast<T *>(info.ptr.get());
 }
 
 // Get the pointer to the shared var (read only).
@@ -405,7 +405,7 @@ inline shared::info_t<Key> * copy(
         }
     }
     else {
-        // Couldn't the src var, can't do anything.
+        // Couldn't find the src var, can't do anything.
         return nullptr;
     }
 }
@@ -604,7 +604,15 @@ inline T * get_ptr(
     shared::list_type<Key> & ls, 
     const std::type_identity_t<Key> & key
 ) {
-    return reinterpret_cast<T *>(ls[key].ptr.get());
+    auto it = ls.find(key);
+    
+    // Check if the var exists
+    if(it != ls.end()) {
+        return reinterpret_cast<T *>(ls[key].ptr.get());
+    }
+    else {
+        return nullptr;
+    }
 }
 
 // Searches the list for the key, if the key is found a copy of the object is returned,
@@ -780,20 +788,30 @@ template <typename Base, typename Key>
 inline Base * safe_build(shared::list_type<Key> & ls, const std::type_identity_t<Key> & key) {
     using func_ptr_type = Base * (*)();
     
-    // Search for the builder
-    func_ptr_type * builder_ptr = shared::get_ptr<func_ptr_type>(ls, key);
+    // Find the builder
+    auto it = ls.find(key);
     
-    // If builder was found
-    if(builder_ptr != nullptr) {
-        // Assign a better name
-        func_ptr_type builder = *builder_ptr;
-        
-        // Build
-        return builder();
-    }
-    else {
+    // If the builder wasn't found, do nothing
+    if(it == ls.end()) {
         return nullptr;
     }
+    
+    // Read the var info
+    shared::info_t<Key> & info = shared::impl::iter_to_info<Key>(it);
+    
+    // Then assert that types are equal
+    if(not shared::impl::are_types_equal<func_ptr_type>(info)) {
+        return nullptr;
+    }
+    
+    // The var exists and the types are equal, lets get the builder
+    func_ptr_type * builder_ptr = shared::impl::info_to_data_ptr<func_ptr_type>(info);
+    
+    // Assign a better name
+    func_ptr_type builder = *builder_ptr;
+    
+    // And build
+    return builder();
 }
 
 } // namespace shared
