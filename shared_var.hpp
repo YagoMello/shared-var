@@ -4,7 +4,7 @@
 /* Shared Variable Library
  * Author:  Yago T. de Mello
  * e-mail:  yago.t.mello@gmail.com
- * Version: 2.2.0 2022-05-27
+ * Version: 2.3.0 2022-06-05
  * License: Apache 2.0
  * C++20
  */
@@ -49,6 +49,10 @@ limitations under the License.
 // std::type_identity_t<Key>
 #include <type_traits>
 
+// shared functions use std::forward to forward args
+// std::declval to use decltype<Func> in shared functions
+#include <utility>
+
 
 // The lib namespace
 namespace shared {
@@ -57,7 +61,7 @@ template <typename Key>
 struct info_t; // forward declaration
 
 // Contains the shared var info
-template <typename Key = std::string>
+template <typename Key>
 struct info_t {
     // The "shared var name" type, defaults to std::string but could be anything
     // accepted by std::map.
@@ -82,6 +86,18 @@ using list_type = std::map<Key, shared::info_t<Key>>;
 
 // Internal use
 namespace impl {
+
+// Extracts the return type of 
+// a function pointer of type FuncPtr
+// called with forwarded args of type Args.
+template <typename FuncPtr, typename ... Args>
+using shared_func_return_type = decltype(
+    std::declval<FuncPtr>()(
+        std::forward<Args>(
+            std::declval<Args>()...
+        )...
+    )
+);
 
 // Allocator template used by shared::create to create new groups when deleting
 // nodes or un-binding variables.
@@ -112,7 +128,7 @@ inline void default_copier(void * ptr_to_dest, void * ptr_to_src) {
 
 // Constructs an object of Derived type
 template <typename Base, typename Derived>
-Base * default_builder() {
+inline Base * default_builder() {
     return new Derived;
 }
 
@@ -263,6 +279,19 @@ template <typename T, typename Key>
 inline const T * info_to_data_ptr(const shared::info_t<Key> & info) {
     return reinterpret_cast<const T *>(info.ptr.get());
 }
+
+// Wraps a function pointer, because a function pointer cannot be
+// converted to void * according to ISO C++
+template <typename FuncPtr>
+struct func_ptr_wrapper_t {
+    FuncPtr func_ptr;
+    
+    template <typename ... Args>
+    auto operator ()(Args && ... args) -> decltype(func_ptr(std::forward<Args>(args)...)) {
+        // Call the function with the forwarded args
+        return func_ptr(std::forward<Args>(args)...);
+    }
+};
 
 } // namespace impl
 
@@ -571,7 +600,7 @@ inline void remove_all(shared::list_type<Key> & ls) {
 
 // Breaks all links with other vars
 template <typename Key>
-void isolate(
+inline void isolate(
     shared::list_type<Key> & ls, 
     const std::type_identity_t<Key> & key
 ) {
@@ -679,6 +708,7 @@ public:
         placeholder_info_.type_id   = &typeid(T);
         placeholder_info_.ptr       = data_ptr;
         placeholder_info_.allocator = shared::impl::default_allocator<T>;
+        placeholder_info_.copier    = shared::impl::default_copier<T>;
         
         info_ = &placeholder_info_;
     }
@@ -713,6 +743,19 @@ public:
     // Access the members of the shared var (read only)
     constexpr const T * operator ->() const {
         return this->get_var_ptr();
+    }
+    
+    // Calls the stored var operator()
+    template <typename ... Args>
+    auto operator ()(Args && ... args) {
+        // T should not be a function pointer, 
+        // see shared::impl::func_ptr_wrapper_t
+        
+        // The callable object
+        T & callable = this->data();
+        
+        // Call operator() with the forwarded args
+        return callable(std::forward<Args>(args)...);
     }
     
     // Get the shared var info
@@ -762,36 +805,39 @@ inline shared::var_t<T, Key> make_var(
     return shared::var_t<T, Key>(info);
 }
 
-// Creates a var builder.
+// Creates a shared (function) var and the var_t wrapper.
 // Deletes any variable with the same key but different type.
 // If a variable with the same key and types exists, the var_t
-// will point to the existing var and will not overwrite the value.
-template <typename Base, typename Derived = Base, typename Key>
-inline shared::var_t<Base * (*)(), Key> make_builder(
+// will point to the existing var and will not overwrite the value. 
+template <typename Func, typename Key>
+inline shared::var_t<shared::impl::func_ptr_wrapper_t<Func>, Key> make_func(
     shared::list_type<Key> & ls, 
-    const std::type_identity_t<Key> & key
+    const std::type_identity_t<Key> & key,
+    Func func
 ) {
-    using func_ptr_type = Base * (*)();
+    using func_wrap_type = shared::impl::func_ptr_wrapper_t<Func>;
     
-    // The new object builder
-    func_ptr_type func_ptr = &shared::impl::default_builder<Base, Derived>;
+    // Wraps the function pointer to save as a void *
+    func_wrap_type func_wrapper {
+        .func_ptr = func
+    };
     
     // Create a shared var
-    shared::info_t<Key> * info = shared::create<func_ptr_type>(ls, key, func_ptr, true);
+    shared::info_t<Key> * info = shared::create<func_wrap_type>(ls, key, func_wrapper, true);
     
     // And the var_t
-    return shared::var_t<func_ptr_type, Key>(info);
+    return shared::var_t<func_wrap_type, Key>(info);
 }
 
-// If the object builder exists, build an object, otherwise returns a nullptr.
-template <typename Base, typename Key>
-inline Base * safe_build(shared::list_type<Key> & ls, const std::type_identity_t<Key> & key) {
-    using func_ptr_type = Base * (*)();
+// Searches the list "ls" then returns the shared (function pointer) var
+template <typename FuncPtr, typename Key>
+inline FuncPtr get_func(shared::list_type<Key> & ls, const std::type_identity_t<Key> & key) {
+    using func_wrap_type = shared::impl::func_ptr_wrapper_t<FuncPtr>;
     
-    // Find the builder
+    // Find the func wrapper
     auto it = ls.find(key);
     
-    // If the builder wasn't found, do nothing
+    // If the func wrapper wasn't found, do nothing
     if(it == ls.end()) {
         return nullptr;
     }
@@ -800,18 +846,70 @@ inline Base * safe_build(shared::list_type<Key> & ls, const std::type_identity_t
     shared::info_t<Key> & info = shared::impl::iter_to_info<Key>(it);
     
     // Then assert that types are equal
-    if(not shared::impl::are_types_equal<func_ptr_type>(info)) {
+    if(not shared::impl::are_types_equal<func_wrap_type>(info)) {
         return nullptr;
     }
     
-    // The var exists and the types are equal, lets get the builder
-    func_ptr_type * builder_ptr = shared::impl::info_to_data_ptr<func_ptr_type>(info);
+    // The var exists and the types are equal, lets get the func wrapper
+    func_wrap_type * wapper_ptr = shared::impl::info_to_data_ptr<func_wrap_type>(info);
     
-    // Assign a better name
-    func_ptr_type builder = *builder_ptr;
+    // And return the function pointer 
+    return wapper_ptr->func_ptr;
+}
+
+// Searches the list "ls" then calls the shared (function pointer) var with the args.
+// Throws if the search fails or the pointer is null.
+template <typename FuncPtr, typename Key, typename ... Args>
+inline auto call(
+    shared::list_type<Key> & ls, 
+    const std::type_identity_t<Key> & key, 
+    Args && ... args
+) -> shared::impl::shared_func_return_type<FuncPtr, Args...> {
+    FuncPtr func_ptr = shared::get_func<FuncPtr>(ls, key);
     
     // And build
-    return builder();
+    if(func_ptr != nullptr) {
+        return func_ptr(std::forward<Args>(args)...);
+    }
+    else {
+        throw(std::runtime_error("<shared> Failed to call shared func " + key));
+    }
+}
+
+// Creates a var builder.
+// Deletes any variable with the same key but different type.
+// If a variable with the same key and types exists, the var_t
+// will point to the existing var and will not overwrite the value.
+template <typename Base, typename Derived = Base, typename Key>
+inline shared::var_t<shared::impl::func_ptr_wrapper_t<Base * (*)()>, Key> make_builder(
+    shared::list_type<Key> & ls, 
+    const std::type_identity_t<Key> & key
+) {
+    using func_ptr_type = Base * (*)();
+    
+    // The new object builder
+    func_ptr_type builder = &shared::impl::default_builder<Base, Derived>;
+    
+    // 
+    return shared::make_func(ls, key, builder);
+}
+
+// If the object builder exists, build an object, otherwise returns a nullptr.
+template <typename Base, typename Key>
+inline Base * safe_build(shared::list_type<Key> & ls, const std::type_identity_t<Key> & key) {
+    using func_ptr_type = Base * (*)();
+    
+    // Find the builder
+    func_ptr_type builder = shared::get_func<func_ptr_type>(ls, key);
+    
+    if(builder != nullptr) {
+        // And build
+        return builder();
+    }
+    else {
+        /// Or not...
+        return nullptr;
+    }
 }
 
 } // namespace shared
