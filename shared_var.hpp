@@ -31,9 +31,6 @@ limitations under the License.
 // shared::auto_get may throw
 #include <exception>
 
-// snapshots use std::list
-#include <list>
-
 // shared::list_type<Key> -> std::map
 #include <map>
 
@@ -63,6 +60,9 @@ namespace shared {
 template <typename Key>
 struct info_t; // forward declaration
 
+template <typename T, typename Key>
+class var_t; // forward declaration
+
 // Contains the shared var info
 template <typename Key>
 struct info_t {
@@ -72,12 +72,14 @@ struct info_t {
     using allocator_type = std::shared_ptr<void> (*)(void * ptr_to_value);
     using copier_type = void (*)(void * ptr_to_dest, void * ptr_to_src);
     
-    std::shared_ptr<void> group_id; // The shared variable (pointer (and type erased))
+    std::shared_ptr<void> ptr; // The shared variable (pointer (and type erased))
+    key_type group_id;         // The group where the variable is shared
     key_type key;              // This variable name
     const std::type_info * type_id; // The shared variable type (RTTI), used for type checking
     allocator_type allocator;  // Allocates memory when called
     copier_type copier;        // Copies the value of another var
     std::set<key_type> refs;   // Variables connected to this var
+    std::set<void **> optimized_vars; // Vars with direct access to the data pointer
 };
 
 // Stores information about the shared variables 
@@ -134,6 +136,26 @@ inline Base * default_builder() {
     return new Derived;
 }
 
+// Updates the subscribers to the new var address
+template <typename Key>
+inline void update_subscribers(shared::info_t<Key> & info) {
+    void * new_ptr = info.ptr.get();
+    // For each subscriber, update the pointer address to 
+    // point to the new var
+    for(void ** var_ptr_ptr : info.optimized_vars) {
+        *var_ptr_ptr = new_ptr;
+    }
+}
+
+// Allocates memory and updates the subscribers to the new var address
+template <typename Key>
+inline void allocate_and_notify_subscribers(shared::info_t<Key> & info, void * ptr_to_value) {
+    // Allocate
+    info.ptr = info.allocator(ptr_to_value);
+    // Notify subscribers
+    shared::impl::update_subscribers(info);
+}
+
 // Verifies if types are equal
 template <typename T, typename Key>
 inline bool are_types_equal(const shared::info_t<Key> & info) {
@@ -168,6 +190,7 @@ inline void make_reference(
     new_info.group_id  = var_info.group_id;
     new_info.type_id   = var_info.type_id;
     new_info.key       = ref_name;
+    new_info.ptr       = var_info.ptr;
     new_info.allocator = var_info.allocator;
     new_info.copier    = var_info.copier;
     
@@ -189,6 +212,10 @@ inline void propagate_group(shared::list_type<Key> & ls, shared::info_t<Key> & d
     if(src.group_id != dest.group_id) {
         // Copy the group and data ptr
         dest.group_id = src.group_id;
+        dest.ptr      = src.ptr;
+        
+        // Update dest subscribers to the new ptr
+        shared::impl::update_subscribers(dest);
         
         // Then repeat the process to every connected node
         for(auto & key : dest.refs) {
@@ -230,8 +257,12 @@ inline void detach_nodes(shared::list_type<Key> & ls, shared::info_t<Key> & info
     // if it has the original group, repeat the process
     for(const Key & ref_key : info.refs) {
         shared::info_t<Key> & ref = ls[ref_key];
-        if(ref.group_id == info.group_id) {
-            ref.group_id = ref.allocator(ref.group_id.get());
+        if(ref.group_id == ref.key) {
+            // do nothing, this branch is already solved
+        }
+        else if(ref.group_id == info.group_id) {
+            ref.group_id = ref.key;
+            shared::impl::allocate_and_notify_subscribers(ref, ref.ptr.get());
             shared::impl::autopropagate_group(ls, ref);
         }
     }
@@ -245,7 +276,10 @@ inline void detach_nodes(shared::list_type<Key> & ls, shared::info_t<Key> & info
         // move the node to a new group
         // because the other group may still be in use
         // due to the option to do nothing when ref.group_id == ref.key
-        info.group_id = info.allocator(info.group_id.get());
+        info.group_id = info.key;
+        
+        // allocate new memory for the new group
+        shared::impl::allocate_and_notify_subscribers(info, info.ptr.get());
         
         // and clear the old references
         info.refs.clear();
@@ -263,14 +297,14 @@ inline void remove(shared::list_type<Key> & ls, shared::info_t<Key> & info) {
 // This pointer is invalidated when the shared-var group is modified
 template <typename T, typename Key>
 inline T * info_to_data_ptr(shared::info_t<Key> & info) {
-    return reinterpret_cast<T *>(info.group_id.get());
+    return reinterpret_cast<T *>(info.ptr.get());
 }
 
 // Get the pointer to the shared var (read only).
 // This pointer is invalidated when the shared-var group is modified
 template <typename T, typename Key>
 inline const T * info_to_data_ptr(const shared::info_t<Key> & info) {
-    return reinterpret_cast<const T *>(info.group_id.get());
+    return reinterpret_cast<const T *>(info.ptr.get());
 }
 
 // Wraps a function pointer, because a function pointer cannot be
@@ -285,6 +319,39 @@ struct func_ptr_wrapper_t {
         return func_ptr(std::forward<Args>(args)...);
     }
 };
+
+// Subscribing the ptr to the var:
+// The var ptr will follow the shared var ptr
+template <typename T, typename Key>
+inline void subscribe_var(
+    shared::list_type<Key> * ls, 
+    const std::type_identity_t<Key> & key,
+    T * & var_ptr
+) {
+    auto it = ls->find(key);
+    
+    if(it != ls->end()) {
+        shared::info_t<Key> & info = shared::impl::iter_to_info<Key>(it);
+        void ** as_void_ptr_ptr = reinterpret_cast<void **>(&var_ptr);
+        info.optimized_vars.insert(as_void_ptr_ptr);
+    }
+}
+
+// Unsubscribing the ptr to the var
+template <typename T, typename Key>
+inline void unsubscribe_var(
+    shared::list_type<Key> * ls, 
+    const std::type_identity_t<Key> & key,
+    T * & var_ptr
+) {
+    auto it = ls->find(key);
+    
+    if(it != ls->end()) {
+        shared::info_t<Key> & info = shared::impl::iter_to_info<Key>(it);
+        void ** as_void_ptr_ptr = reinterpret_cast<void **>(&var_ptr);
+        info.optimized_vars.erase(as_void_ptr_ptr);
+    }
+}
 
 } // namespace impl
 
@@ -314,8 +381,7 @@ inline shared::info_t<Key> * create(
         // And assign the other parameters
         
         // The key must be unique, so it can be used as group id
-        // Is anything more unique than the varible address?
-        info.group_id  = data_ptr;
+        info.group_id  = key;
         
         // typeid() returns a reference to an object with
         // static storage durration, allowing us to store the pointer
@@ -323,6 +389,7 @@ inline shared::info_t<Key> * create(
         info.type_id   = &typeid(T);
         
         info.key       = key;
+        info.ptr       = data_ptr;
         info.allocator = shared::impl::default_allocator<T>;
         info.copier    = shared::impl::default_copier<T>;
         
@@ -388,9 +455,10 @@ inline shared::info_t<Key> * copy(
         
         // Setting some values that are different from the src
         info_dest.key = key_dest;
+        info_dest.group_id = key_dest;
         
         // Allocate the memory and copy the value
-        info_dest.group_id = info_dest.allocator(info_src.group_id.get());
+        shared::impl::allocate_and_notify_subscribers(info_dest, info_src.ptr.get());
         
         // Save the new var in the list of vars
         ls_dest[key_dest] = info_dest;
@@ -407,8 +475,8 @@ inline shared::info_t<Key> * copy(
         // when accessing woult lead to UB
         if(shared::impl::are_types_equal(info_src, info_dest)) {
             // Types are equal, copying values and returning existing info
-            void * src_ptr  = info_src.group_id.get();
-            void * dest_ptr = info_dest.group_id.get();
+            void * src_ptr  = info_src.ptr.get();
+            void * dest_ptr = info_dest.ptr.get();
             
             info_src.copier(dest_ptr, src_ptr);
             return &info_dest;
@@ -536,11 +604,13 @@ inline void unbind(
     // put the node in a new group, allocate a new var
     // and propagate the new group
     if(info2.group_id != info2.key) {
-        info2.group_id = info2.allocator(info2.group_id.get());
+        info2.group_id = info2.key;
+        shared::impl::allocate_and_notify_subscribers(info2, info2.ptr.get());
         shared::impl::autopropagate_group(ls, info2);
     }
     else {
-        info1.group_id = info1.allocator(info1.group_id.get());
+        info1.group_id = info1.key;
+        shared::impl::allocate_and_notify_subscribers(info1, info1.ptr.get());
         shared::impl::autopropagate_group(ls, info1);
     }
 }
@@ -553,7 +623,10 @@ inline void unbind_all(shared::list_type<Key> & ls) {
     for(auto & [key, info] : ls) {
         // the group id is set to a different value,
         // breaking the groups
-        info.group_id = info.allocator(info.group_id.get());
+        info.group_id = info.key;
+        
+        // a new var is allocated for the new group
+        shared::impl::allocate_and_notify_subscribers(info, info.ptr.get());
         
         // and every reference to other nodes is removed
         info.refs.clear();
@@ -624,7 +697,7 @@ inline T * get_ptr(
     
     // Check if the var exists
     if(it != ls.end()) {
-        return reinterpret_cast<T *>(ls[key].group_id.get());
+        return reinterpret_cast<T *>(ls[key].ptr.get());
     }
     else {
         return nullptr;
@@ -676,58 +749,110 @@ inline T & auto_get(
     throw(std::runtime_error("<shared> auto_get failed to create var " + key));
 }
 
-// Shared var abstrcation, encapsulates a shared var and simplifies its manipulation.
-// Can be used as a normal var when default constructed.
+// The closest to the original var while still receiving
+// var-network updates
 template <typename T, typename Key>
 class var_t {
 public:
-    // The shared var type
     using value_type = T;
     
-    // Default constructor, allows the shared var to be used as 
-    // a normal var when not inserted in a shared var list
-    var_t() {
-        auto data_ptr = std::make_shared<T>();
+    var_t() = delete;
+    
+    var_t(const shared::var_t<T, Key> & src) {
+        // Copy all members
+        data_ptr_ = src.data_ptr_;
+        list_     = src.list_;
+        key_      = src.key_;
         
-        placeholder_info_.key       = Key();
-        placeholder_info_.group_id  = data_ptr;
-        placeholder_info_.type_id   = &typeid(T);
-        placeholder_info_.allocator = shared::impl::default_allocator<T>;
-        placeholder_info_.copier    = shared::impl::default_copier<T>;
+        // Then subscribe
+        this->subscribe();
+    }
+    
+    // Always needs to unsubscribe, moving is not an option.
+    var_t(shared::var_t<T, Key> && src) = delete;
+    
+    // Create an optimized var.
+    var_t(shared::list_type<Key> & ls, const std::type_identity_t<Key> & key) {
+        // Copy all members
+        data_ptr_ = shared::get_ptr<T>(ls, key);
+        list_     = &ls;
+        key_      = key;
         
-        info_ = &placeholder_info_;
+        // Then subscribe
+        this->subscribe();
     }
     
-    // Attach a var to a list
-    var_t(shared::info_t<Key> * info) {
-        info_ = info;
+    // Create an optimized var from info.
+    var_t(shared::list_type<Key> & ls, shared::info_t<Key> * info) {
+        // Copy all members
+        data_ptr_ = shared::impl::info_to_data_ptr<T>(*info);
+        list_     = &ls;
+        key_      = info->key;
+        
+        // Then subscribe
+        this->subscribe();
     }
     
-    // Access the variable
-    constexpr value_type & data() {
-        return *this->get_var_ptr();
+    // Just unsubscribes the var
+    ~var_t() {
+        this->unsubscribe();
     }
     
-    // Access the variable (read only)
-    constexpr operator const value_type &() const {
-        return *this->get_var_ptr();
+    var_t<T, Key> & operator =(const shared::var_t<T, Key> & rhs) {
+        // Self destruct
+        this->unsubscribe();
+        
+        // Then copy-construct
+        data_ptr_ = rhs.data_ptr_;
+        list_     = rhs.list_;
+        key_      = rhs.key_;
+        
+        this->subscribe();
     }
+    
+    // Always needs to unsubscribe, moving is not an option.
+    var_t<T, Key> & operator =(shared::var_t<T, Key> && rhs) = delete;
     
     // Assign a value to the variable
     constexpr value_type & operator =(const value_type & rhs) {
-        T & value = *this->get_var_ptr();
+        T & value = *data_ptr_;
         value = rhs;
         return value;
     }
     
+    // Access the variable (read only)
+    constexpr operator const value_type &() const {
+        return *data_ptr_;
+    }
+    
+    // Access the variable
+    constexpr value_type & ref() {
+        return *data_ptr_;
+    }
+    
+    // Access the variable (read only).
+    constexpr const value_type & ref() const {
+        return *data_ptr_;
+    }
+    
+    // Access the members of the shared var
+    constexpr T & operator *() {
+        return *data_ptr_;
+    }
+    
+    // Access the members of the shared var (read only)
+    constexpr const T & operator *() const {
+        return *data_ptr_;
+    }
+    
     // Access the members of the shared var
     constexpr T * operator ->() {
-        return this->get_var_ptr();
+        return data_ptr_;
     }
     
     // Access the members of the shared var (read only)
     constexpr const T * operator ->() const {
-        return this->get_var_ptr();
+        return data_ptr_;
     }
     
     // Calls the stored var operator()
@@ -737,43 +862,38 @@ public:
         // see shared::impl::func_ptr_wrapper_t
         
         // The callable object
-        T & callable = this->data();
+        T & callable = this->ref();
         
         // Call operator() with the forwarded args
         return callable(std::forward<Args>(args)...);
     }
     
-    // Get the shared var info
-    shared::info_t<Key> * info() {
-        return info_;
-    }
-    
-    // Get the shared var info (read only)
-    const shared::info_t<Key> * info() const {
-        return info_;
-    }
-    
     // Get the pointer to the shared var.
-    // This pointer is invalidated when the shared-var group is modified
-    constexpr T * get_var_ptr() {
-        assert(info_ != nullptr);
-        return reinterpret_cast<T *>(info_->group_id.get());
+    constexpr T * ptr() {
+        return data_ptr_;
     }
     
     // Get the pointer to the shared var (read only).
-    // This pointer is invalidated when the shared-var group is modified
-    constexpr const T * get_var_ptr() const {
-        assert(info_ != nullptr);
-        return reinterpret_cast<const T *>(info_->group_id.get());
+    constexpr const T * ptr() const {
+        return data_ptr_;
     }
     
 private:
-    // Points to the shared var info, which contains updated information
-    // about the shared var
-    shared::info_t<Key> * info_ = nullptr;
+    T * data_ptr_;
+    shared::list_type<Key> * list_;
+    Key key_;
     
-    // Used when no shared var is assigned, to prevent invalid memory access
-    shared::info_t<Key> placeholder_info_;
+    void subscribe() {
+        if(data_ptr_ != nullptr) {
+            shared::impl::subscribe_var(list_, key_, data_ptr_);
+        }
+    }
+    
+    void unsubscribe() {
+        if(data_ptr_ != nullptr) {
+            shared::impl::unsubscribe_var(list_, key_, data_ptr_);
+        }
+    }
 };
 
 // Creates a shared var and the var_t wrapper.
@@ -787,7 +907,7 @@ inline shared::var_t<T, Key> make_var(
     const T & default_value = T()
 ) {
     shared::info_t<Key> * info = shared::create(ls, key, default_value, true);
-    return shared::var_t<T, Key>(info);
+    return shared::var_t<T, Key>(ls, info);
 }
 
 // Creates a shared (function) var and the var_t wrapper.
@@ -811,7 +931,7 @@ inline shared::var_t<shared::impl::func_ptr_wrapper_t<FuncPtr>, Key> make_func(
     shared::info_t<Key> * info = shared::create<func_wrap_type>(ls, key, func_wrapper, true);
     
     // And the var_t
-    return shared::var_t<func_wrap_type, Key>(info);
+    return shared::var_t<func_wrap_type, Key>(ls, info);
 }
 
 // Searches the list "ls" then returns the shared (function pointer) var
