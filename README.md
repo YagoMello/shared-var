@@ -6,6 +6,7 @@
 C++ 20 Header-Only library for high-performance generic maps with binding capabilities.
 
 ### One map, many data types
+A shared var list can hold any data type:
 ```cpp
 shared::create(vars, "average temperature", 22.5f); // a float named average temperature
 shared::create(vars, "average presure", 101200U);   // an unsigned int named average pressure
@@ -13,11 +14,13 @@ shared::create(vars, "opaque-data", some_obj);      // an object named opaque-da
 ```
 
 ### Abstracted variables
+Views can be used as variables:
 ```cpp
 auto players = shared::make_var<uint8_t>(vars, "players", 0); // created a shared var named players
 players = 10;                // assigned 10 to "players"
 uint8_t pairs = players / 2; // pairs = 5
 ```
+And they also auto-refresh:
 ```cpp
 auto btn = shared::make_var<bool>(window, "ok_btn"); // accessing a GUI object
 if(btn) { // the var is updated in real time, because it *is* the same var
@@ -25,6 +28,7 @@ if(btn) { // the var is updated in real time, because it *is* the same var
 ```
 
 ### Variable binding
+Vars can share the same memory:
 ```cpp
 auto diode_p    = shared::make_var<double>(components, "diode +"); // oh look an electrical pin
 auto resistor_n = shared::make_var<double>(components, "res -");   // and another pin
@@ -35,6 +39,7 @@ std::cout << diode_p; // assigns to the other too; prints 5.0
 ```
 
 ### Variable alias
+Bind also creates new vars when needed:
 ```cpp
 shared::create<window>(windows, "config_window"); // a window running in the background
 
@@ -65,8 +70,9 @@ shared::unbind(vars, "2", "3");
 ```
 
 ### Generic keys
+Anything comparable (<, >, ==) can be used as key:
 ```cpp
-shared::list<int> vars; // using *int* as key type
+shared::list_type<int> vars; // using *int* as key type
 
 shared::create<someobj>(vars, 0); // key = 0
 shared::create<someobj>(vars, 1); // key = 1
@@ -75,6 +81,7 @@ shared::bind(vars, 0, 1); // binding 0 and 1
 ```
 
 ### Sharing
+Different views of the same key have the same value, share the same memory:
 ```cpp
 auto cows = shared::make_var<int>(vars, "cows");
 auto dogs = shared::make_var<int>(vars, "cows"); // the var name still "cows"
@@ -93,13 +100,16 @@ auto main_controller = shared::make_var<controller_t>(vars, "main-controller");
 ```
 
 ### Overriding
+Vars can be overriden with `shared::create` when `overwrite` is set to `true`, or by using `shared::make_var`
 ```cpp
 shared::create<int>(vars, "X", 42); // "X" = 42
 shared::create<int>(vars, "X", 84); // "X" = 42, because "X" is already initialized
 
 shared::get<int>(vars, "X") = 37;   // "X" = 37, explicitly setting "X"
 
-shared::create<double>(vars, "X", 3.14); // "X" = 3.14, the old "X" has been deleted
+shared::create<double>(vars, "X", 3.14, true); // "X" = 3.14, the old "X" has been deleted
+
+shared::create<char>(vars, "X", 'c'); // "X" = 3.14, "X" has not been overwriten
 ```
 
 # How
@@ -109,7 +119,7 @@ Download `shared_var.hpp`, move the file to your project folder and `#include` i
 ## Functions
 | Name                     | Description                                                                                    | Returns               |
 |--------------------------|------------------------------------------------------------------------------------------------|-----------------------|
-|`create<T>(list, key, value = T())`| Creates a new var with key `key` and value `value`. `T` may be omitted if a value `value` is given to the variable | Pointer to new `info` |
+|`create<T>(list, key, value = T(), overwrite = false)`| Creates a new var with key `key` and value `value`. `T` may be omitted if a value `value` is given to the variable | Pointer to new `info` |
 |`bind(list, key1, key2)  `| Binds vars `key1` and `key2`                                                                   | Bind status code      |
 |`unbind(list, key1, key2)`| Unbinds vars `key1` and `key2`                                                                 | Nothing               |
 |`unbind_all(list)        `| Unbinds every var in the list `list`                                                           | Nothing               |
