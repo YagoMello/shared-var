@@ -4,7 +4,7 @@
 /* Shared Variable Library
  * Author:  Yago T. de Mello
  * e-mail:  yago.t.mello@gmail.com
- * Version: 2.5.0 2022-06-05
+ * Version: 2.6.0 2022-06-14
  * License: Apache 2.0
  * C++20
  */
@@ -22,7 +22,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// shared::var_t::get_var_ptr uses assert()
+// shared::var_view_t::get_var_ptr uses assert()
 #include <cassert>
 
 // enum bind_codes_t -> uint_fast8_t
@@ -59,9 +59,6 @@ namespace shared {
 
 template <typename Key>
 struct info_t; // forward declaration
-
-template <typename T, typename Key>
-class var_t; // forward declaration
 
 // Contains the shared var info
 template <typename Key>
@@ -362,7 +359,7 @@ template <typename T, typename Key>
 inline shared::info_t<Key> * create(
     shared::list_type<Key> & ls, 
     const std::type_identity_t<Key> & key, 
-    const T & default_value = T(),
+    T && default_value = T(),
     const bool overwrite = false
 ) {
     // Check if the var already exists
@@ -376,7 +373,7 @@ inline shared::info_t<Key> * create(
         shared::info_t<Key> info;
         
         // Allocate the memory
-        auto data_ptr = std::make_shared<T>(default_value);
+        auto data_ptr = std::make_shared<T>(std::forward<T>(default_value));
         
         // And assign the other parameters
         
@@ -414,7 +411,7 @@ inline shared::info_t<Key> * create(
             // Then we should delete the current var
             // And create the new one on its place
             shared::impl::remove(ls, info);
-            return shared::create(ls, key, default_value, overwrite);
+            return shared::create(ls, key, std::forward<T>(default_value), overwrite);
         }
         else {
             // Types are different and can't overwrite, crap.
@@ -752,13 +749,13 @@ inline T & auto_get(
 // The closest to the original var while still receiving
 // var-network updates
 template <typename T, typename Key>
-class var_t {
+class var_view_t {
 public:
     using value_type = T;
     
-    var_t() = delete;
+    var_view_t() = delete;
     
-    var_t(const shared::var_t<T, Key> & src) {
+    var_view_t(const shared::var_view_t<T, Key> & src) {
         // Copy all members
         data_ptr_ = src.data_ptr_;
         list_     = src.list_;
@@ -769,10 +766,10 @@ public:
     }
     
     // Always needs to unsubscribe, moving is not an option.
-    var_t(shared::var_t<T, Key> && src) = delete;
+    var_view_t(shared::var_view_t<T, Key> && src) = delete;
     
     // Create an optimized var.
-    var_t(shared::list_type<Key> & ls, const std::type_identity_t<Key> & key) {
+    var_view_t(shared::list_type<Key> & ls, const std::type_identity_t<Key> & key) {
         // Copy all members
         data_ptr_ = shared::get_ptr<T>(ls, key);
         list_     = &ls;
@@ -783,7 +780,7 @@ public:
     }
     
     // Create an optimized var from info.
-    var_t(shared::list_type<Key> & ls, shared::info_t<Key> * info) {
+    var_view_t(shared::list_type<Key> & ls, shared::info_t<Key> * info) {
         // Copy all members
         data_ptr_ = shared::impl::info_to_data_ptr<T>(*info);
         list_     = &ls;
@@ -794,11 +791,11 @@ public:
     }
     
     // Just unsubscribes the var
-    ~var_t() {
+    ~var_view_t() {
         this->unsubscribe();
     }
     
-    var_t<T, Key> & operator =(const shared::var_t<T, Key> & rhs) {
+    var_view_t<T, Key> & operator =(const shared::var_view_t<T, Key> & rhs) {
         // Self destruct
         this->unsubscribe();
         
@@ -811,7 +808,7 @@ public:
     }
     
     // Always needs to unsubscribe, moving is not an option.
-    var_t<T, Key> & operator =(shared::var_t<T, Key> && rhs) = delete;
+    var_view_t<T, Key> & operator =(shared::var_view_t<T, Key> && rhs) = delete;
     
     // Assign a value to the variable
     constexpr value_type & operator =(const value_type & rhs) {
@@ -896,26 +893,26 @@ private:
     }
 };
 
-// Creates a shared var and the var_t wrapper.
+// Creates a shared var and the var_view_t wrapper.
 // Deletes any variable with the same key but different type.
-// If a variable with the same key and types exists, the var_t
+// If a variable with the same key and types exists, the var_view_t
 // will point to the existing var and will not overwrite the value.
 template <typename T, typename Key>
-inline shared::var_t<T, Key> make_var(
+inline shared::var_view_t<T, Key> make_var(
     shared::list_type<Key> & ls, 
     const std::type_identity_t<Key> & key, 
-    const T & default_value = T()
+    T && default_value = T()
 ) {
-    shared::info_t<Key> * info = shared::create(ls, key, default_value, true);
-    return shared::var_t<T, Key>(ls, info);
+    shared::info_t<Key> * info = shared::create(ls, key, std::forward<T>(default_value), true);
+    return shared::var_view_t<T, Key>(ls, info);
 }
 
-// Creates a shared (function) var and the var_t wrapper.
+// Creates a shared (function) var and the var_view_t wrapper.
 // Deletes any variable with the same key but different type.
-// If a variable with the same key and types exists, the var_t
+// If a variable with the same key and types exists, the var_view_t
 // will point to the existing var and will not overwrite the value. 
 template <typename FuncPtr, typename Key>
-inline shared::var_t<shared::impl::func_ptr_wrapper_t<FuncPtr>, Key> make_func(
+inline shared::var_view_t<shared::impl::func_ptr_wrapper_t<FuncPtr>, Key> make_func(
     shared::list_type<Key> & ls, 
     const std::type_identity_t<Key> & key,
     FuncPtr funcptr
@@ -930,8 +927,8 @@ inline shared::var_t<shared::impl::func_ptr_wrapper_t<FuncPtr>, Key> make_func(
     // Create a shared var
     shared::info_t<Key> * info = shared::create<func_wrap_type>(ls, key, func_wrapper, true);
     
-    // And the var_t
-    return shared::var_t<func_wrap_type, Key>(ls, info);
+    // And the var_view_t
+    return shared::var_view_t<func_wrap_type, Key>(ls, info);
 }
 
 // Searches the list "ls" then returns the shared (function pointer) var
@@ -956,10 +953,10 @@ inline FuncPtr get_func(shared::list_type<Key> & ls, const std::type_identity_t<
     }
     
     // The var exists and the types are equal, lets get the func wrapper
-    func_wrap_type * wapper_ptr = shared::impl::info_to_data_ptr<func_wrap_type>(info);
+    func_wrap_type * wrapper_ptr = shared::impl::info_to_data_ptr<func_wrap_type>(info);
     
     // And return the function pointer 
-    return wapper_ptr->func_ptr;
+    return wrapper_ptr->func_ptr;
 }
 
 // Searches the list "ls" then calls the shared (function pointer) var with the args.
@@ -983,10 +980,10 @@ inline auto call(
 
 // Creates a var builder.
 // Deletes any variable with the same key but different type.
-// If a variable with the same key and types exists, the var_t
+// If a variable with the same key and types exists, the var_view_t
 // will point to the existing var and will not overwrite the value.
 template <typename Base, typename Derived = Base, typename Key>
-inline shared::var_t<shared::impl::func_ptr_wrapper_t<Base * (*)()>, Key> make_builder(
+inline shared::var_view_t<shared::impl::func_ptr_wrapper_t<Base * (*)()>, Key> make_builder(
     shared::list_type<Key> & ls, 
     const std::type_identity_t<Key> & key
 ) {
@@ -995,7 +992,7 @@ inline shared::var_t<shared::impl::func_ptr_wrapper_t<Base * (*)()>, Key> make_b
     // The new object builder
     func_ptr_type builder = &shared::impl::default_builder<Base, Derived>;
     
-    // 
+    // Add it to the list
     return shared::make_func(ls, key, builder);
 }
 
@@ -1012,7 +1009,7 @@ inline Base * safe_build(shared::list_type<Key> & ls, const std::type_identity_t
         return builder();
     }
     else {
-        /// Or not...
+        // Or not...
         return nullptr;
     }
 }
