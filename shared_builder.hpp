@@ -5,7 +5,7 @@
  * Shared Builder Module
  * Author:  Yago T. de Mello
  * e-mail:  yago.t.mello@gmail.com
- * Version: 2.8.0 2022-06-26
+ * Version: 2.8.1 2022-06-26
  * License: Apache 2.0
  * C++20
  */
@@ -47,19 +47,19 @@ using builder_type = Base * (*)();
 // If a variable with the same key and types exists, the var_view_t
 // will point to the existing var and will not overwrite the value.
 template <typename Base, typename Derived = Base, typename Key>
-inline shared::var_view_t<builder_type<Base>, Key> make_builder(
+inline shared::var_view_t<shared::builder_type<Base>, Key> make_builder(
     shared::list_type<Key> & ls, 
     const std::type_identity_t<Key> & key
 ) {
     // Add the builder to the list
-    return shared::make_var<builder_type<Base>>(ls, key, &shared::impl::default_builder<Base, Derived>);
+    return shared::make_var<shared::builder_type<Base>>(ls, key, &shared::impl::default_builder<Base, Derived>);
 }
 
 // If the object builder exists, build an object, otherwise returns a nullptr.
 template <typename Base, typename Key>
 inline Base * build(shared::list_type<Key> & ls, const std::type_identity_t<Key> & key) {
     // Find the builder
-    builder_type<Base> builder = shared::get<builder_type<Base>>(ls, key);
+    shared::builder_type<Base> builder = shared::get<shared::builder_type<Base>>(ls, key);
     
     if(builder != nullptr) {
         // And build

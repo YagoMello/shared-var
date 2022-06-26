@@ -4,7 +4,7 @@
 /* Shared Variable Library
  * Author:  Yago T. de Mello
  * e-mail:  yago.t.mello@gmail.com
- * Version: 2.8.0 2022-06-26
+ * Version: 2.8.1 2022-06-26
  * License: Apache 2.0
  * C++20
  */
