@@ -114,7 +114,9 @@ shared::create<char>(vars, "X", 'c'); // "X" = 3.14, "X" has not been overwriten
 
 # How
 ## Installation
-Download `shared_var.hpp`, move the file to your project folder and `#include` it.
+Download `shared_var.hpp`, move the file to your project folder and `#include`.
+
+To use shared builders, download `shared_builders.hpp` and `#include`.
 
 ## Functions
 **shared_var.hpp**
@@ -128,7 +130,7 @@ Download `shared_var.hpp`, move the file to your project folder and `#include` i
 |`remove_all(list)        `| Removes every var from the list `list`                                                         | Nothing               |
 |`isolate(list, key)      `| Removes every bind of `key`                                                                    | Nothing               |
 |`contains(list, key)     `| True if `list` contains key `key`                                                              | `true` or `false`     |
-|`get_ptr<T>(list, key)   `| Pointer to shared-var data                                                                     | `T *`                 |
+|`get_ptr<T>(list, key)   `| Pointer to shared-var data, if var doesnt exist returns a nullptr                              | `T *`                 |
 |`get<T>(list, key)       `| Copy of shared-var data, if var doesnt exist one is default constructed                        | `T`                   |
 |`auto_get<T>(list, key)  `| Reference to shared-var data, if var doesnt exist creates a new var, if fails to create throws | `T &`                 |
 |`make_var<T>(list, key, value = T())`| Returns a view of the var. Creates a new var if necessary. Deletes any variable with the same key but different type. | `var_t<T, Key>`|
@@ -142,6 +144,7 @@ Download `shared_var.hpp`, move the file to your project folder and `#include` i
 |`make_builder<Base, Derived>(list, key)`| Returns a view of the builder. Creates a new builder if necessary. Overrides builders with the same key. | Builder View |
 |`build<Base>(list, key)`| Builds an object of Derived type registered by `shared::make_builder` | `Base *` |
 |`build_unique<Base>(list, key)`| Builds an `std::unique_ptr<Base>` of Derived type registered by `shared::make_builder` | `std::unique_ptr<Base>` |
+|`build_unique<Base>(list, key)`| Builds an `std::shared_ptr<Base>` of Derived type registered by `shared::make_builder` | `std::shared_ptr<Base>` |
 
 ## Types
 | Name               | Description                                     | Type                       |
