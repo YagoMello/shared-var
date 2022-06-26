@@ -4,7 +4,7 @@
 /* Shared Variable Library
  * Author:  Yago T. de Mello
  * e-mail:  yago.t.mello@gmail.com
- * Version: 2.6.0 2022-06-14
+ * Version: 2.7.0 2022-06-25
  * License: Apache 2.0
  * C++20
  */
@@ -28,6 +28,9 @@ limitations under the License.
 // enum bind_codes_t -> uint_fast8_t
 #include <cinttypes>
 
+// concept std::convertible_to<T>
+#include <concepts>
+
 // shared::auto_get may throw
 #include <exception>
 
@@ -46,19 +49,15 @@ limitations under the License.
 // shared::info_t<Key>::type_id -> std::type_info
 #include <typeinfo>
 
-// std::type_identity_t<Key>
+// std::type_identity_t<Key> and std::is_reference<T>
 #include <type_traits>
 
-// shared functions use std::forward to forward args
-// std::declval to use decltype<Func> in shared functions
+// std::forward, used in many places to forward args
 #include <utility>
 
 
 // The lib namespace
 namespace shared {
-
-template <typename Key>
-struct info_t; // forward declaration
 
 // Contains the shared var info
 template <typename Key>
@@ -84,26 +83,19 @@ struct info_t {
 template <typename Key = std::string>
 using list_type = std::map<Key, shared::info_t<Key>>;
 
+template <typename T>
+concept storable = 
+    not std::is_reference<T>::value && 
+    not std::is_function<T>::value;
+
 
 // Internal use
 namespace impl {
 
-// Extracts the return type of 
-// a function pointer of type FuncPtr
-// called with forwarded args of type Args.
-template <typename FuncPtr, typename ... Args>
-using shared_func_return_type = decltype(
-    std::declval<FuncPtr>()(
-        std::forward<Args>(
-            std::declval<Args>()...
-        )...
-    )
-);
-
 // Allocator template used by shared::create to create new groups when deleting
 // nodes or un-binding variables.
 // Contains the information needed to allocate and construct variables
-template <typename T>
+template <shared::storable T>
 inline std::shared_ptr<void> default_allocator(void * ptr_to_value) {
     std::shared_ptr ptr = std::make_shared<T>();
     
@@ -117,7 +109,7 @@ inline std::shared_ptr<void> default_allocator(void * ptr_to_value) {
 
 // Copies the value from dest to src.
 // Does not check for nullptrs.
-template <typename T>
+template <shared::storable T>
 inline void default_copier(void * ptr_to_dest, void * ptr_to_src) {
     // The src is not const, because "operator =" may not be const.
     T & src = *reinterpret_cast<T *>(ptr_to_src);
@@ -125,12 +117,6 @@ inline void default_copier(void * ptr_to_dest, void * ptr_to_src) {
     
     // Assign the value to the destination
     dest = src;
-}
-
-// Constructs an object of Derived type
-template <typename Base, typename Derived>
-inline Base * default_builder() {
-    return new Derived;
 }
 
 // Updates the subscribers to the new var address
@@ -154,7 +140,7 @@ inline void allocate_and_notify_subscribers(shared::info_t<Key> & info, void * p
 }
 
 // Verifies if types are equal
-template <typename T, typename Key>
+template <shared::storable T, typename Key>
 inline bool are_types_equal(const shared::info_t<Key> & info) {
     return *info.type_id == typeid(T);
 }
@@ -292,34 +278,21 @@ inline void remove(shared::list_type<Key> & ls, shared::info_t<Key> & info) {
 
 // Get the pointer to the shared var.
 // This pointer is invalidated when the shared-var group is modified
-template <typename T, typename Key>
+template <shared::storable T, typename Key>
 inline T * info_to_data_ptr(shared::info_t<Key> & info) {
     return reinterpret_cast<T *>(info.ptr.get());
 }
 
 // Get the pointer to the shared var (read only).
 // This pointer is invalidated when the shared-var group is modified
-template <typename T, typename Key>
+template <shared::storable T, typename Key>
 inline const T * info_to_data_ptr(const shared::info_t<Key> & info) {
     return reinterpret_cast<const T *>(info.ptr.get());
 }
 
-// Wraps a function pointer, because a function pointer cannot be
-// converted to void * according to ISO C++
-template <typename FuncPtr>
-struct func_ptr_wrapper_t {
-    FuncPtr func_ptr;
-    
-    template <typename ... Args>
-    auto operator ()(Args && ... args) -> decltype(func_ptr(std::forward<Args>(args)...)) {
-        // Call the function with the forwarded args
-        return func_ptr(std::forward<Args>(args)...);
-    }
-};
-
 // Subscribing the ptr to the var:
 // The var ptr will follow the shared var ptr
-template <typename T, typename Key>
+template <shared::storable T, typename Key>
 inline void subscribe_var(
     shared::list_type<Key> * ls, 
     const std::type_identity_t<Key> & key,
@@ -335,7 +308,7 @@ inline void subscribe_var(
 }
 
 // Unsubscribing the ptr to the var
-template <typename T, typename Key>
+template <shared::storable T, typename Key>
 inline void unsubscribe_var(
     shared::list_type<Key> * ls, 
     const std::type_identity_t<Key> & key,
@@ -355,11 +328,11 @@ inline void unsubscribe_var(
 
 // Creates a new shared var, stored in the list "ls".
 // A pointer to the shared var info is returned.
-template <typename T, typename Key>
+template <shared::storable T, typename Key, std::convertible_to<T> Value = T>
 inline shared::info_t<Key> * create(
     shared::list_type<Key> & ls, 
     const std::type_identity_t<Key> & key, 
-    T && default_value = T(),
+    Value && default_value = T(),
     const bool overwrite = false
 ) {
     // Check if the var already exists
@@ -411,7 +384,7 @@ inline shared::info_t<Key> * create(
             // Then we should delete the current var
             // And create the new one on its place
             shared::impl::remove(ls, info);
-            return shared::create(ls, key, std::forward<T>(default_value), overwrite);
+            return shared::create<T>(ls, key, std::forward<T>(default_value), overwrite);
         }
         else {
             // Types are different and can't overwrite, crap.
@@ -685,7 +658,7 @@ inline bool contains(
 
 // Searches the list "ls" then returns a pointer to the shared var
 // This pointer is invalidated when the shared-var group is modified
-template <typename T, typename Key>
+template <shared::storable T, typename Key>
 inline T * get_ptr(
     shared::list_type<Key> & ls, 
     const std::type_identity_t<Key> & key
@@ -703,7 +676,7 @@ inline T * get_ptr(
 
 // Searches the list for the key, if the key is found a copy of the object is returned,
 // else a new object is constructed (but not saved to the shared list)
-template <typename T, typename Key>
+template <shared::storable T, typename Key>
 inline T get(
     shared::list_type<Key> & ls, 
     const std::type_identity_t<Key> & key
@@ -720,7 +693,7 @@ inline T get(
 // Searches the list for the key, if the key is found a reference to the object is returned,
 // else a new object is constructed
 // The reference is invalidated when the shared-var group is modified
-template <typename T, typename Key>
+template <shared::storable T, typename Key>
 inline T & auto_get(
     shared::list_type<Key> & ls, 
     const std::type_identity_t<Key> & key
@@ -748,7 +721,7 @@ inline T & auto_get(
 
 // The closest to the original var while still receiving
 // var-network updates
-template <typename T, typename Key>
+template <shared::storable T, typename Key>
 class var_view_t {
 public:
     using value_type = T;
@@ -855,9 +828,6 @@ public:
     // Calls the stored var operator()
     template <typename ... Args>
     auto operator ()(Args && ... args) {
-        // T should not be a function pointer, 
-        // see shared::impl::func_ptr_wrapper_t
-        
         // The callable object
         T & callable = this->ref();
         
@@ -897,121 +867,16 @@ private:
 // Deletes any variable with the same key but different type.
 // If a variable with the same key and types exists, the var_view_t
 // will point to the existing var and will not overwrite the value.
-template <typename T, typename Key>
+template <shared::storable T, typename Key, std::convertible_to<T> Value = T>
 inline shared::var_view_t<T, Key> make_var(
     shared::list_type<Key> & ls, 
     const std::type_identity_t<Key> & key, 
-    T && default_value = T()
+    Value && default_value = T()
 ) {
-    shared::info_t<Key> * info = shared::create(ls, key, std::forward<T>(default_value), true);
+    // cannot return a dangling/bad view!
+    constexpr bool should_overwrite = true;
+    shared::info_t<Key> * info = shared::create<T>(ls, key, std::forward<T>(default_value), should_overwrite);
     return shared::var_view_t<T, Key>(ls, info);
-}
-
-// Creates a shared (function) var and the var_view_t wrapper.
-// Deletes any variable with the same key but different type.
-// If a variable with the same key and types exists, the var_view_t
-// will point to the existing var and will not overwrite the value. 
-template <typename FuncPtr, typename Key>
-inline shared::var_view_t<shared::impl::func_ptr_wrapper_t<FuncPtr>, Key> make_func(
-    shared::list_type<Key> & ls, 
-    const std::type_identity_t<Key> & key,
-    FuncPtr funcptr
-) {
-    using func_wrap_type = shared::impl::func_ptr_wrapper_t<FuncPtr>;
-    
-    // Wraps the function pointer to save as a void *
-    func_wrap_type func_wrapper {
-        .func_ptr = funcptr
-    };
-    
-    // Create a shared var
-    shared::info_t<Key> * info = shared::create<func_wrap_type>(ls, key, func_wrapper, true);
-    
-    // And the var_view_t
-    return shared::var_view_t<func_wrap_type, Key>(ls, info);
-}
-
-// Searches the list "ls" then returns the shared (function pointer) var
-template <typename FuncPtr, typename Key>
-inline FuncPtr get_func(shared::list_type<Key> & ls, const std::type_identity_t<Key> & key) {
-    using func_wrap_type = shared::impl::func_ptr_wrapper_t<FuncPtr>;
-    
-    // Find the func wrapper
-    auto it = ls.find(key);
-    
-    // If the func wrapper wasn't found, do nothing
-    if(it == ls.end()) {
-        return nullptr;
-    }
-    
-    // Read the var info
-    shared::info_t<Key> & info = shared::impl::iter_to_info<Key>(it);
-    
-    // Then assert that types are equal
-    if(not shared::impl::are_types_equal<func_wrap_type>(info)) {
-        return nullptr;
-    }
-    
-    // The var exists and the types are equal, lets get the func wrapper
-    func_wrap_type * wrapper_ptr = shared::impl::info_to_data_ptr<func_wrap_type>(info);
-    
-    // And return the function pointer 
-    return wrapper_ptr->func_ptr;
-}
-
-// Searches the list "ls" then calls the shared (function pointer) var with the args.
-// Throws if the search fails or the pointer is null.
-template <typename FuncPtr, typename Key, typename ... Args>
-inline auto call(
-    shared::list_type<Key> & ls, 
-    const std::type_identity_t<Key> & key, 
-    Args && ... args
-) -> shared::impl::shared_func_return_type<FuncPtr, Args...> {
-    FuncPtr func_ptr = shared::get_func<FuncPtr>(ls, key);
-    
-    // And build
-    if(func_ptr != nullptr) {
-        return func_ptr(std::forward<Args>(args)...);
-    }
-    else {
-        throw(std::runtime_error("<shared> Failed to call shared func " + key));
-    }
-}
-
-// Creates a var builder.
-// Deletes any variable with the same key but different type.
-// If a variable with the same key and types exists, the var_view_t
-// will point to the existing var and will not overwrite the value.
-template <typename Base, typename Derived = Base, typename Key>
-inline shared::var_view_t<shared::impl::func_ptr_wrapper_t<Base * (*)()>, Key> make_builder(
-    shared::list_type<Key> & ls, 
-    const std::type_identity_t<Key> & key
-) {
-    using func_ptr_type = Base * (*)();
-    
-    // The new object builder
-    func_ptr_type builder = &shared::impl::default_builder<Base, Derived>;
-    
-    // Add it to the list
-    return shared::make_func(ls, key, builder);
-}
-
-// If the object builder exists, build an object, otherwise returns a nullptr.
-template <typename Base, typename Key>
-inline Base * safe_build(shared::list_type<Key> & ls, const std::type_identity_t<Key> & key) {
-    using func_ptr_type = Base * (*)();
-    
-    // Find the builder
-    func_ptr_type builder = shared::get_func<func_ptr_type>(ls, key);
-    
-    if(builder != nullptr) {
-        // And build
-        return builder();
-    }
-    else {
-        // Or not...
-        return nullptr;
-    }
 }
 
 } // namespace shared
