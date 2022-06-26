@@ -100,7 +100,7 @@ auto main_controller = shared::make_var<controller_t>(vars, "main-controller");
 ```
 
 ### Overriding
-Vars can be overriden with `shared::create` when `overwrite` is set to `true`, or by using `shared::make_var`
+Vars can be overriden with `shared::create` when `overwrite` is set to `true`, or by using `shared::make_var`:
 ```cpp
 shared::create<int>(vars, "X", 42); // "X" = 42
 shared::create<int>(vars, "X", 84); // "X" = 42, because "X" is already initialized
@@ -110,6 +110,29 @@ shared::get<int>(vars, "X") = 37;   // "X" = 37, explicitly setting "X"
 shared::create<double>(vars, "X", 3.14, true); // "X" = 3.14, the old "X" has been deleted
 
 shared::create<char>(vars, "X", 'c'); // "X" = 3.14, "X" has not been overwriten
+```
+
+### Builders
+Builders are useful for dynamically creatign polymorphic objects based on user input:
+```cpp
+// the base class
+// class vehicle_t {...};
+//
+// and derived classes
+// class car_t : public vehicle_t {...};
+// class bus_t : public vehicle_t {...};
+// ...
+
+// somewhere in the code, create the builders
+shared::make_builder<vehicle_t, car_t>(vehicles, "car");
+shared::make_builder<vehicle_t, bus_t>(vehicles, "bus");
+
+// to create a new instance of a car:
+vehicle_t * vehicle = shared::build<vehicle_t>(vehicles, "car");
+
+// maybe unique pointers or shared pointers
+std::unique_ptr<vehicle_t> unique_bus = shared::build_unique<vehicle_t>(vehicles, "bus");
+std::shared_ptr<vehicle_t> shared_bus = shared::build_shared<vehicle_t>(vehicles, "bus");
 ```
 
 # How
@@ -144,7 +167,7 @@ To use shared builders, download `shared_builders.hpp` and `#include`.
 |`make_builder<Base, Derived>(list, key)`| Returns a view of the builder. Creates a new builder if necessary. Overrides builders with the same key. | Builder View |
 |`build<Base>(list, key)`| Builds an object of Derived type registered by `shared::make_builder` | `Base *` |
 |`build_unique<Base>(list, key)`| Builds an `std::unique_ptr<Base>` of Derived type registered by `shared::make_builder` | `std::unique_ptr<Base>` |
-|`build_unique<Base>(list, key)`| Builds an `std::shared_ptr<Base>` of Derived type registered by `shared::make_builder` | `std::shared_ptr<Base>` |
+|`build_shared<Base>(list, key)`| Builds an `std::shared_ptr<Base>` of Derived type registered by `shared::make_builder` | `std::shared_ptr<Base>` |
 
 ## Types
 | Name               | Description                                     | Type                       |
