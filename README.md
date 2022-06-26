@@ -8,9 +8,9 @@ C++ 20 Header-Only library for high-performance generic maps with binding capabi
 ### One map, many data types
 A shared var list can hold any data type:
 ```cpp
-shared::create(vars, "average temperature", 22.5f); // a float named average temperature
-shared::create(vars, "average presure", 101200U);   // an unsigned int named average pressure
-shared::create(vars, "opaque-data", some_obj);      // an object named opaque-data
+shared::create<float>(vars, "average temperature", 22.5f); // a float named average temperature
+shared::create<unsigned int>(vars, "average presure", 101200U);   // an unsigned int named average pressure
+shared::create<obj_t>(vars, "opaque-data", some_obj);      // an object named opaque-data
 ```
 
 ### Abstracted variables
@@ -117,9 +117,10 @@ shared::create<char>(vars, "X", 'c'); // "X" = 3.14, "X" has not been overwriten
 Download `shared_var.hpp`, move the file to your project folder and `#include` it.
 
 ## Functions
+**shared_var.hpp**
 | Name                     | Description                                                                                    | Returns               |
 |--------------------------|------------------------------------------------------------------------------------------------|-----------------------|
-|`create<T>(list, key, value = T(), overwrite = false)`| Creates a new var with key `key` and value `value`. `T` may be omitted if a value `value` is given to the variable. `overwrite` allows the var to change type. | Pointer to new `info` |
+|`create<T>(list, key, value = T(), overwrite = false)`| Creates a new var with key `key` and value `value`. `overwrite` allows the var to change type. | Pointer to new `info` |
 |`bind(list, key1, key2)  `| Binds vars `key1` and `key2`                                                                   | Bind status code      |
 |`unbind(list, key1, key2)`| Unbinds vars `key1` and `key2`                                                                 | Nothing               |
 |`unbind_all(list)        `| Unbinds every var in the list `list`                                                           | Nothing               |
@@ -130,29 +131,34 @@ Download `shared_var.hpp`, move the file to your project folder and `#include` i
 |`get_ptr<T>(list, key)   `| Pointer to shared-var data                                                                     | `T *`                 |
 |`get<T>(list, key)       `| Copy of shared-var data, if var doesnt exist one is default constructed                        | `T`                   |
 |`auto_get<T>(list, key)  `| Reference to shared-var data, if var doesnt exist creates a new var, if fails to create throws | `T &`                 |
-|`make_var<T>(list, key, value = T())`| Returns a view of the var. Creates a new var if necessary. Deletes any variable with the same key but different type. `T` may be omitted if a value `value` is given to the variable | `var_t<T, Key>`|
-|`make_func<FuncPtr, Key> `| Returns a view of the (func) var. Creates a new var if necessary. Deletes any variable with the same key but different type. | Func View |
-|`get_func<FuncPtr>(list, key)`| Returns the function pointer | `FuncPtr` |
-|`call<FuncPtr>(list, key, args...)`| Calls the function, returns the value returned by the function. | Varies |
+|`make_var<T>(list, key, value = T())`| Returns a view of the var. Creates a new var if necessary. Deletes any variable with the same key but different type. | `var_t<T, Key>`|
+<!--- |`make_func<FuncPtr, Key> `| Returns a view of the (func) var. Creates a new var if necessary. Deletes any variable with the same key but different type. | Func View | -->
+<!--- |`get_func<FuncPtr>(list, key)`| Returns the function pointer | `FuncPtr` | -->
+<!--- |`call<FuncPtr>(list, key, args...)`| Calls the function, returns the value returned by the function. | Varies | -->
+
+**shared_builder.hpp**
+| Name                     | Description                                                                                    | Returns               |
+|--------------------------|------------------------------------------------------------------------------------------------|-----------------------|
 |`make_builder<Base, Derived>(list, key)`| Returns a view of the builder. Creates a new builder if necessary. Overrides builders with the same key. | Builder View |
-|`safe_build<Base>(list, key)`| Builds an object of Derived type registered by `shared::make_builder` | Base * |
+|`build<Base>(list, key)`| Builds an object of Derived type registered by `shared::make_builder` | `Base *` |
+|`build_unique<Base>(list, key)`| Builds an `std::unique_ptr<Base>` of Derived type registered by `shared::make_builder` | `std::unique_ptr<Base>` |
 
 ## Types
-| Name           | Description                                     | Type                       |
-|----------------|-------------------------------------------------|----------------------------|
-|`info_t<Key>   `| Stores information about the shared var         |`struct<Key>               `|
-|`list_type<Key>`| Maps `key` to `info_t<Key>`                     |`std::map<Key, info_t<Key>>`|
-|`bind_codes_t  `| Result of `shared::bind(list, key1, key2)`      |`enum : uint_fast8_t       `|
-|`var_t<T, Key> `| Shared var abstraction, behaves as `T`          |`class<T, Key>             `|
+| Name               | Description                                     | Type                       |
+|--------------------|-------------------------------------------------|----------------------------|
+|`info_t<Key>       `| Stores information about the shared var         |`struct<Key>               `|
+|`list_type<Key>    `| Maps `key` to `info_t<Key>`                     |`std::map<Key, info_t<Key>>`|
+|`bind_codes_t      `| Result of `shared::bind(list, key1, key2)`      |`enum : uint_fast8_t       `|
+|`var_view_t<T, Key>`| Shared var abstraction, behaves as `T`     |`class<T, Key>             `|
 
 ## Var abstraction
-`class shared::var_t<T, Key>`
+`class shared::var_view_t<T, Key>`
 
 This class simplifies the shared var manipulation, behaving as the variable itself.
 | Function                  | Description                                                                                    | Returns               |
 |---------------------------|------------------------------------------------------------------------------------------------|-----------------------|
-|`var_t()                  `| Constructs an un-bindable var, similar to a normal var                                         |                       |
-|`var_t(info_t<Key> * info)`| Constructs a bindable var, the constructor used by `shared::make_var`                          |                       |
+|`var_view_t()             `| Constructs an un-bindable var, similar to a normal var                                         |                       |
+|`var_view_t(info_t<Key> * info)`| Constructs a bindable var, the constructor used by `shared::make_var`                          |                       |
 |`ref()                    `| Reference to the shared var data                                                               | `value_type &`        |
 |`operator value_type &()  `| Converts the object to (a reference of) the shared var                                         | `value_type &`        |
 |`operator =(const value_type & value)`| Assigns a value to the shared var                                                   | `value_type &`        |
