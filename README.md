@@ -9,8 +9,8 @@ C++ 20 Header-Only library for high-performance generic maps with binding capabi
 A shared var list can hold any data type:
 ```cpp
 shared::create<float>(vars, "average temperature", 22.5f); // a float named average temperature
-shared::create<unsigned int>(vars, "average presure", 101200U);   // an unsigned int named average pressure
-shared::create<obj_t>(vars, "opaque-data", some_obj);      // an object named opaque-data
+shared::create<unsigned int>(vars, "average presure", 101200U); // an unsigned int named average pressure
+shared::create<obj_t>(vars, "opaque-data", some_obj); // an object named opaque-data
 ```
 
 ### Abstracted variables
@@ -118,9 +118,13 @@ Builders are useful for dynamically creatign polymorphic objects based on user i
 // the base class
 // class vehicle_t {...};
 //
-// and derived classes
+// the derived classes
 // class car_t : public vehicle_t {...};
 // class bus_t : public vehicle_t {...};
+// ...
+// 
+// and the shared var list
+// shared::list_type<std::string> vehicles;
 // ...
 
 // somewhere in the code, create the builders
