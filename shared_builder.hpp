@@ -5,7 +5,7 @@
  * Shared Builder Module
  * Author:  Yago T. de Mello
  * e-mail:  yago.t.mello@gmail.com
- * Version: 2.7.0 2022-06-25
+ * Version: 2.8.0 2022-06-26
  * License: Apache 2.0
  * C++20
  */
@@ -73,8 +73,14 @@ inline Base * build(shared::list_type<Key> & ls, const std::type_identity_t<Key>
 
 // If the object builder exists, build an object, otherwise returns a nullptr.
 template <typename Base, typename Key>
-inline Base * build_unique(shared::list_type<Key> & ls, const std::type_identity_t<Key> & key) {
+inline std::unique_ptr<Base> build_unique(shared::list_type<Key> & ls, const std::type_identity_t<Key> & key) {
     return std::unique_ptr<Base>(shared::build<Base>(ls, key));
+}
+
+// If the object builder exists, build an object, otherwise returns a nullptr.
+template <typename Base, typename Key>
+inline std::shared_ptr<Base> build_shared(shared::list_type<Key> & ls, const std::type_identity_t<Key> & key) {
+    return std::shared_ptr<Base>(shared::build<Base>(ls, key));
 }
 
 } // namespace shared
