@@ -59,6 +59,7 @@ int main() {
 // ===== Testing B =====
     
     B2 = 123.45f;
+    
     shared::debug::print_map(map, "\nSetting B2 to 123.45f\nBn sould also be 123.45:");
     // Setting B2 to 123.45f
     // Bn sould also be 123.45:
@@ -72,6 +73,7 @@ int main() {
 // ===== Binding A and B =====
     
     shared::bind(map, "A2", "B1");
+    
     shared::debug::print_map(map, "\nAfter binding A2 and B1:");
     // After binding A2 and B1:
     // map at 0x7ffede618610
@@ -84,6 +86,7 @@ int main() {
 // ===== Testing merge =====
     
     A2 = 777.77f;
+    
     shared::debug::print_map(map, "\nSetting A2 to 777.77f\nEvery An and Bn == 777.77f:");
     // Setting A2 to 777.77f
     // Every An and Bn == 777.77f:
@@ -97,6 +100,7 @@ int main() {
 // ===== Deleting A2 =====
     
     shared::remove(map, "A2");
+    
     shared::debug::print_map(map, "\nAfter removing A2\nA2 was the link between A1 and B1, the groups have split:");
     // After removing A2
     // A2 was the link between A1 and B1, the groups have split:
@@ -109,6 +113,7 @@ int main() {
 // ===== Testing A1 =====
 
     A1 = 135.79f;
+    
     shared::debug::print_map(map, "\nAfter setting A1 to 135.79f\nBn should remain 777.77f:");
     // After setting A1 to 135.79f
     // Bn should remain 777.77f:

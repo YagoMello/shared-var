@@ -60,10 +60,10 @@ public:
     
 // ==== std::map types ====
     
-    using iterator       = storage_type::iterator;
-    using const_iterator = storage_type::const_iterator;
+    using iterator       = typename storage_type::iterator;
+    using const_iterator = typename storage_type::const_iterator;
     
-    using size_type      = storage_type::size_type;
+    using size_type      = typename storage_type::size_type;
     
 // ==== custom constructors and assignment operators ====
     

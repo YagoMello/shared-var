@@ -77,4 +77,4 @@ inline shared::obj_view_t<T, Key> make_obj(
 } // namespace shared
 
 
-#endif
+#endif // VIEW_FUNCTIONS_HPP
