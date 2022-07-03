@@ -246,7 +246,6 @@ inline void subscribe_view(
         shared::info_t<Key> & info = shared::impl::iter_to_info<Key>(it);
         void ** as_void_ptr_ptr = reinterpret_cast<void **>(&var_ptr);
         info.pointers_to_var.insert(as_void_ptr_ptr);
-        info.pointers_to_map.insert(&mp_ptr);
     }
 }
 
@@ -264,7 +263,6 @@ inline void unsubscribe_view(
         shared::info_t<Key> & info = shared::impl::iter_to_info<Key>(it);
         void ** as_void_ptr_ptr = reinterpret_cast<void **>(&var_ptr);
         info.pointers_to_var.erase(as_void_ptr_ptr);
-        info.pointers_to_map.erase(&mp_ptr);
     }
 }
 

@@ -41,6 +41,8 @@ limitations under the License.
 //   a string if it has a conversion function or member fn.
 //
 // - Comments
+//
+// - Returning a std::stringstream
 
 
 namespace shared::debug {
@@ -153,7 +155,6 @@ inline void print_map(shared::map_type<Key> & map, const std::string & comment =
             " at " << info.ptr << 
             std::endl;
     }
-    std::cout << "========" << std::endl;
 }
 
 } // namespace shared::debug
