@@ -1,11 +1,11 @@
-#ifndef DEBUG_TOOLS_HPP
-#define DEBUG_TOOLS_HPP
+#ifndef SHARED_VAR_LIB__DEBUG_TOOLS_HPP
+#define SHARED_VAR_LIB__DEBUG_TOOLS_HPP
 
 /* Shared Variable Library
  * Debug tools
  * Author:  Yago T. de Mello
  * e-mail:  yago.t.mello@gmail.com
- * Version: 2.10.0 2022-07-02
+ * Version: 2.11.0 2022-07-09
  * License: Apache 2.0
  * C++20
  */
@@ -74,8 +74,8 @@ inline void print_info(shared::info_t<Key> & info) {
     }
 }
 
-template <typename Key>
-inline int key_size(shared::map_type<Key> & map, const size_t max) {
+template <typename Map, typename Key = typename Map::key_type>
+inline int key_size(Map & map, const size_t max) {
     size_t largest = 0;
     
     for(auto & [key, info] : map) {
@@ -95,8 +95,8 @@ bool is_type(const shared::info_t<Key> & info) {
 }
 
 // for each element in the map, print the key, value, group id and address
-template <typename Key>
-inline void print_map(shared::map_type<Key> & map, const std::string & comment = "") {
+template <typename Map, typename Key = typename Map::key_type>
+inline void print_map(Map & map, const std::string & comment = "") {
     std::cout << comment << std::endl;
     std::cout << "map at " << &map << std::endl;
     for(auto & [key, info] : map) {
@@ -160,4 +160,4 @@ inline void print_map(shared::map_type<Key> & map, const std::string & comment =
 } // namespace shared::debug
 
 
-#endif // DEBUG_TOOLS_HPP
+#endif // SHARED_VAR_LIB__DEBUG_TOOLS_HPP

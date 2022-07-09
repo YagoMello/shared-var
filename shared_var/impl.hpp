@@ -1,11 +1,11 @@
-#ifndef IMPL_HPP
-#define IMPL_HPP
+#ifndef SHARED_VAR_LIB__IMPL_HPP
+#define SHARED_VAR_LIB__IMPL_HPP
 
 /* Shared Variable Library
  * Impl
  * Author:  Yago T. de Mello
  * e-mail:  yago.t.mello@gmail.com
- * Version: 2.10.0 2022-07-02
+ * Version: 2.11.0 2022-07-09
  * License: Apache 2.0
  * C++20
  */
@@ -93,16 +93,22 @@ inline bool are_types_equal(const shared::info_t<Key> & info_lhs, const shared::
 }
 
 // Converts the std::map::find() result into shared::info_t<Key> data
-template <typename Key>
-inline shared::info_t<Key> & iter_to_info(typename shared::map_type<Key>::iterator & iter) {
+template <typename Map, typename Key = typename Map::key_type>
+inline shared::info_t<Key> & iter_to_info(typename Map::iterator & iter) {
+    return iter->second;
+}
+
+// Converts the std::map::find() result into shared::info_t<Key> data
+template <typename Map, typename Key = typename Map::key_type>
+inline const shared::info_t<Key> & iter_to_info(typename Map::const_iterator & iter) {
     return iter->second;
 }
 
 // Creates a shared var based on the input var, then
 // connects both while keeping the input-var group unchanged.
-template <typename Key>
+template <typename Map, typename Key = typename Map::key_type>
 inline void make_reference(
-    shared::map_type<Key> & mp, 
+    Map & mp, 
     shared::info_t<Key> & var_info, 
     const auto & ref_name
 ) {
@@ -130,8 +136,8 @@ inline void make_reference(
 
 // Applies the source group to the dest group.
 // Faster than connecting two groups and autopropagating.
-template <typename Key>
-inline void propagate_group(shared::map_type<Key> & mp, shared::info_t<Key> & dest, const shared::info_t<Key> & src) {
+template <typename Map, typename Key = typename Map::key_type>
+inline void propagate_group(Map & mp, shared::info_t<Key> & dest, const shared::info_t<Key> & src) {
     // Protect from cyclic references
     if(src.group_id != dest.group_id) {
         // Copy the group and data ptr
@@ -151,8 +157,8 @@ inline void propagate_group(shared::map_type<Key> & mp, shared::info_t<Key> & de
 // Propagates the group of a node to every connected node.
 // Used by "unbind" and "remove" to find new groups when variables
 // get decoupled.
-template <typename Key>
-inline void autopropagate_group(shared::map_type<Key> & mp, const shared::info_t<Key> & info) {
+template <typename Map, typename Key = typename Map::key_type>
+inline void autopropagate_group(Map & mp, const shared::info_t<Key> & info) {
     for(auto & key : info.refs) {
         shared::impl::propagate_group(mp, mp[key], info);
     }
@@ -167,8 +173,8 @@ inline void link_vars(shared::info_t<Key> & info1, shared::info_t<Key> & info2) 
 
 // Disconnect nodes from the selected node
 // If "should_remove_node" is "true", the selected node is removed.
-template <typename Key>
-inline void detach_nodes(shared::map_type<Key> & mp, shared::info_t<Key> & info, const bool should_remove_node = false) {
+template <typename Map, typename Key = typename Map::key_type>
+inline void detach_nodes(Map & mp, shared::info_t<Key> & info, const bool should_remove_node = false) {
     // disconnect the soon-to-be-deleted node drom it's refs
     for(const Key & ref_key : info.refs) {
         shared::info_t<Key> & ref = mp[ref_key]; 
@@ -211,8 +217,8 @@ inline void detach_nodes(shared::map_type<Key> & mp, shared::info_t<Key> & info,
 }
 
 // Deletes a variable and removes its references from other variables
-template <typename Key>
-inline void remove(shared::map_type<Key> & mp, shared::info_t<Key> & info) {
+template <typename Map, typename Key = typename Map::key_type>
+inline void remove(Map & mp, shared::info_t<Key> & info) {
     // remove references to this node then remove the node
     shared::impl::detach_nodes(mp, info, true);
 }
@@ -234,16 +240,16 @@ inline const T * info_to_data_ptr(const shared::info_t<Key> & info) {
 // Subscribing the ptr to the var:
 // The var ptr will follow the shared var ptr
 // USE THE INTERNAL MAP POINTER
-template <shared::storable T, typename Key>
+template <shared::storable T, typename Map, typename Key = typename Map::key_type>
 inline void subscribe_view(
-    shared::map_type<Key> * & mp_ptr, 
+    Map * & mp_ptr, 
     const std::type_identity_t<Key> & key,
     T * & var_ptr
 ) {
     auto it = mp_ptr->find(key);
     
     if(it != mp_ptr->end()) {
-        shared::info_t<Key> & info = shared::impl::iter_to_info<Key>(it);
+        shared::info_t<Key> & info = shared::impl::iter_to_info<Map>(it);
         void ** as_void_ptr_ptr = reinterpret_cast<void **>(&var_ptr);
         info.pointers_to_var.insert(as_void_ptr_ptr);
     }
@@ -251,16 +257,16 @@ inline void subscribe_view(
 
 // Unsubscribing the ptr to the var
 // USE THE INTERNAL MAP POINTER
-template <shared::storable T, typename Key>
+template <shared::storable T, typename Map, typename Key = typename Map::key_type>
 inline void unsubscribe_view(
-    shared::map_type<Key> * & mp_ptr, 
+    Map * & mp_ptr, 
     const std::type_identity_t<Key> & key,
     T * & var_ptr
 ) {
     auto it = mp_ptr->find(key);
     
     if(it != mp_ptr->end()) {
-        shared::info_t<Key> & info = shared::impl::iter_to_info<Key>(it);
+        shared::info_t<Key> & info = shared::impl::iter_to_info<Map>(it);
         void ** as_void_ptr_ptr = reinterpret_cast<void **>(&var_ptr);
         info.pointers_to_var.erase(as_void_ptr_ptr);
     }
@@ -269,4 +275,4 @@ inline void unsubscribe_view(
 } // namespace shared::impl 
 
 
-#endif // IMPL_HPP
+#endif // SHARED_VAR_LIB__IMPL_HPP

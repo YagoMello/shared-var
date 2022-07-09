@@ -1,11 +1,11 @@
-#ifndef INCLUDES_HPP
-#define INCLUDES_HPP
+#ifndef SHARED_VAR_LIB__INCLUDES_HPP
+#define SHARED_VAR_LIB__INCLUDES_HPP
 
 /* Shared Variable Library
  * Includes
  * Author:  Yago T. de Mello
  * e-mail:  yago.t.mello@gmail.com
- * Version: 2.10.0 2022-07-02
+ * Version: 2.11.0 2022-07-09
  * License: Apache 2.0
  * C++20
  */
@@ -56,4 +56,4 @@ limitations under the License.
 // std::forward, used in many places to forward args
 #include <utility>
 
-#endif // INCLUDES_HPP
+#endif // SHARED_VAR_LIB__INCLUDES_HPP

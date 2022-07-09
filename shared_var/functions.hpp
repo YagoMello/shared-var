@@ -1,11 +1,11 @@
-#ifndef FUNCTIONS_HPP
-#define FUNCTIONS_HPP
+#ifndef SHARED_VAR_LIB__FUNCTIONS_HPP
+#define SHARED_VAR_LIB__FUNCTIONS_HPP
 
 /* Shared Variable Library
  * Functions
  * Author:  Yago T. de Mello
  * e-mail:  yago.t.mello@gmail.com
- * Version: 2.10.0 2022-07-02
+ * Version: 2.11.0 2022-07-09
  * License: Apache 2.0
  * C++20
  */
@@ -38,9 +38,9 @@ namespace shared {
 
 // Creates a new shared var, stored in the map "mp".
 // A pointer to the shared var info is returned.
-template <shared::storable T, typename Key, std::convertible_to<T> Value = T>
+template <shared::storable T, typename Map, typename Key = typename Map::key_type, shared::assignable_to<T> Value = T>
 inline shared::info_t<Key> * create(
-    shared::map_type<Key> & mp, 
+    Map & mp, 
     const std::type_identity_t<Key> & key, 
     Value && default_value = T(),
     const bool overwrite = false
@@ -55,8 +55,16 @@ inline shared::info_t<Key> * create(
         // and the control variables
         shared::info_t<Key> info;
         
+        // Create the shared ptr to own the variable
+        std::shared_ptr<T> data_ptr;
+        
         // Allocate the memory
-        auto data_ptr = std::make_shared<T>(std::forward<T>(default_value));
+        if constexpr(std::is_move_constructible<T>::value) {
+            data_ptr = std::make_shared<T>(std::forward<T>(default_value));
+        }
+        else {
+            data_ptr = std::make_shared<T>(default_value);
+        }
         
         // And assign the other parameters
         
@@ -81,7 +89,7 @@ inline shared::info_t<Key> * create(
     }
     else {
         // The var exists, but may not be of the same type
-        shared::info_t<Key> & info = shared::impl::iter_to_info<Key>(it);
+        shared::info_t<Key> & info = shared::impl::iter_to_info<Map>(it);
         
         // We cannot return info pointing to another type,
         // when accessing woult lead to UB
@@ -105,10 +113,10 @@ inline shared::info_t<Key> * create(
 
 // Copies the src var in the src map to the dest var in the dest map.
 // Creates a new dest var if needed.
-template <typename Key>
+template <typename Map, typename Key = typename Map::key_type>
 inline shared::info_t<Key> * copy(
-    shared::map_type<Key> & mp_src, 
-    shared::map_type<Key> & mp_dest, 
+    Map & mp_src, 
+    Map & mp_dest, 
     const std::type_identity_t<Key> & key_src, 
     const std::type_identity_t<Key> & key_dest, 
     const bool overwrite = false
@@ -123,7 +131,7 @@ inline shared::info_t<Key> * copy(
         // The src exists and te dest doesn't
         
         // The src is just a ref
-        shared::info_t<Key> & info_src = shared::impl::iter_to_info<Key>(it_src);
+        shared::info_t<Key> & info_src = shared::impl::iter_to_info<Map>(it_src);
         
         // The dest is a new info to create a new var
         shared::info_t<Key> info_dest;
@@ -148,8 +156,8 @@ inline shared::info_t<Key> * copy(
     }
     else if(it_src != mp_src.end() && it_dest != mp_dest.end()) {
         // The var exists, but may not be of the same type
-        shared::info_t<Key> & info_src  = shared::impl::iter_to_info<Key>(it_src);
-        shared::info_t<Key> & info_dest = shared::impl::iter_to_info<Key>(it_dest);
+        shared::info_t<Key> & info_src  = shared::impl::iter_to_info<Map>(it_src);
+        shared::info_t<Key> & info_dest = shared::impl::iter_to_info<Map>(it_dest);
         
         // We cannot return info pointing to another type,
         // when accessing woult lead to UB
@@ -181,9 +189,9 @@ inline shared::info_t<Key> * copy(
 
 // Copies the src var to the dest var.
 // Creates a new dest var if needed.
-template <typename Key>
+template <typename Map, typename Key = typename Map::key_type>
 inline shared::info_t<Key> * copy(
-    shared::map_type<Key> & mp, 
+    Map & mp, 
     const std::type_identity_t<Key> & key_src, 
     const std::type_identity_t<Key> & key_dest, 
     const bool overwrite = false
@@ -201,9 +209,9 @@ enum bind_t : uint_fast8_t {
 };
 
 // Connects two variables, making them share the same memory
-template <typename Key>
+template <typename Map, typename Key = typename Map::key_type>
 inline shared::bind_t bind(
-    shared::map_type<Key> & mp, 
+    Map & mp, 
     const std::type_identity_t<Key> & key_L, 
     const std::type_identity_t<Key> & key_R
 ) {
@@ -219,14 +227,14 @@ inline shared::bind_t bind(
     else if(it_key_L == mp.end()) {
         // node L doesn't exist, and will be created using
         // node R data with impl::make_reference
-        auto & info_R = shared::impl::iter_to_info<Key>(it_key_R);
+        auto & info_R = shared::impl::iter_to_info<Map>(it_key_R);
         shared::impl::make_reference(mp, info_R, key_L);
         return shared::BIND_CREATED_LHS;
     }
     else if(it_key_R == mp.end()) {
         // node R doesn't exist, and will be created using
         // node L data with impl::make_reference
-        auto & info_L = shared::impl::iter_to_info<Key>(it_key_L);
+        auto & info_L = shared::impl::iter_to_info<Map>(it_key_L);
         shared::impl::make_reference(mp, info_L, key_R);
         return shared::BIND_CREATED_RHS;
     }
@@ -234,8 +242,8 @@ inline shared::bind_t bind(
         // both nodes exist, but we dont know if the types match
         
         // get node information for type checking
-        auto & info_L = shared::impl::iter_to_info<Key>(it_key_L);
-        auto & info_R = shared::impl::iter_to_info<Key>(it_key_R);
+        auto & info_L = shared::impl::iter_to_info<Map>(it_key_L);
+        auto & info_R = shared::impl::iter_to_info<Map>(it_key_R);
         
         // check types
         if(shared::impl::are_types_equal(info_L, info_R)) {
@@ -258,9 +266,9 @@ inline shared::bind_t bind(
 
 // Disconnects two variables, allocating new memory 
 // but keeping the original value.
-template <typename Key>
+template <typename Map, typename Key = typename Map::key_type>
 inline void unbind(
-    shared::map_type<Key> & mp, 
+    Map & mp, 
     const std::type_identity_t<Key> & key1, 
     const std::type_identity_t<Key> & key2
 ) {
@@ -297,8 +305,8 @@ inline void unbind(
 
 // Destroy all links between nodes, moving each variable
 // to its own group
-template <typename Key>
-inline void unbind_all(shared::map_type<Key> & mp) {
+template <typename Map, typename Key = typename Map::key_type>
+inline void unbind_all(Map & mp) {
     // for every element in the map
     for(auto & [key, info] : mp) {
         // the group id is set to a different value,
@@ -314,9 +322,9 @@ inline void unbind_all(shared::map_type<Key> & mp) {
 }
 
 // Deletes a variable and removes its references from other variables
-template <typename Key>
+template <typename Map, typename Key = typename Map::key_type>
 inline void remove(
-    shared::map_type<Key> & mp, 
+    Map & mp, 
     const std::type_identity_t<Key> & key
 ) {
     // Search for the var info
@@ -325,7 +333,7 @@ inline void remove(
     // If the info was found
     if(it != mp.end()) {
         // Assign a pretty name
-        shared::info_t<Key> & info = shared::impl::iter_to_info<Key>(it);
+        shared::info_t<Key> & info = shared::impl::iter_to_info<Map>(it);
         
         // and remove the info
         shared::impl::remove(mp, info);
@@ -333,15 +341,15 @@ inline void remove(
 }
 
 // Deletes every var in the map
-template <typename Key>
-inline void remove_all(shared::map_type<Key> & mp) {
+template <typename Map, typename Key = typename Map::key_type>
+inline void remove_all(Map & mp) {
     mp.clear();
 }
 
 // Breaks all links with other vars
-template <typename Key>
+template <typename Map, typename Key = typename Map::key_type>
 inline void isolate(
-    shared::map_type<Key> & mp, 
+    Map & mp, 
     const std::type_identity_t<Key> & key
 ) {
     // Search for the var info
@@ -350,7 +358,7 @@ inline void isolate(
     // If the info was found
     if(it != mp.end()) {
         // Assign a pretty name
-        shared::info_t<Key> & info = shared::impl::iter_to_info<Key>(it);
+        shared::info_t<Key> & info = shared::impl::iter_to_info<Map>(it);
         
         // Then detach nodes
         shared::impl::detach_nodes(mp, info);
@@ -364,15 +372,15 @@ enum exists_t : uint_fast8_t {
 };
 
 // Finds whether an element with the given key and type exists
-template <typename T, typename Key>
-inline bool exists(
-    const shared::map_type<Key> & mp, 
+template <typename T, typename Map, typename Key = typename Map::key_type>
+inline shared::exists_t exists(
+    const Map & mp, 
     const std::type_identity_t<Key> & key
 ) {
     auto it = mp.find(key);
     
     if(it != mp.end()) {
-        shared::info_t<Key> & info = shared::impl::iter_to_info<Key>(it);
+        shared::info_t<Key> & info = shared::impl::iter_to_info<Map>(it);
         
         if(shared::impl::are_types_equal<T>(info)) {
             return shared::VAR_EXISTS_TYPES_ARE_EQUAL;
@@ -387,15 +395,15 @@ inline bool exists(
 }
 
 // Finds whether an element with the given key and type exists
-template <typename T, typename Key>
+template <typename T, typename Map, typename Key = typename Map::key_type>
 inline bool contains(
-    const shared::map_type<Key> & mp, 
+    const Map & mp, 
     const std::type_identity_t<Key> & key
 ) {
     auto it = mp.find(key);
     
     if(it != mp.end()) {
-        shared::info_t<Key> & info = shared::impl::iter_to_info<Key>(it);
+        shared::info_t<Key> & info = shared::impl::iter_to_info<Map>(it);
         
         if(shared::impl::are_types_equal<T>(info)) {
             return true;
@@ -410,9 +418,9 @@ inline bool contains(
 }
 
 // Finds whether an element with the given key exists
-template <typename Key>
+template <typename Map, typename Key = typename Map::key_type>
 inline bool contains_key(
-    const shared::map_type<Key> & mp, 
+    const Map & mp, 
     const std::type_identity_t<Key> & key
 ) {
     return mp.contains(key);
@@ -420,16 +428,16 @@ inline bool contains_key(
 
 // Searches the map "mp" then returns a pointer to the shared var
 // This pointer is invalidated when the shared-var group is modified
-template <shared::storable T, typename Key>
+template <shared::storable T, typename Map, typename Key = typename Map::key_type>
 inline T * get_ptr(
-    shared::map_type<Key> & mp, 
+    Map & mp, 
     const std::type_identity_t<Key> & key
 ) {
     auto it = mp.find(key);
     
     // Check if the var exists
     if(it != mp.end()) {
-        return reinterpret_cast<T *>(mp[key].ptr.get());
+        return reinterpret_cast<T *>(shared::impl::info_to_data_ptr<T>(shared::impl::iter_to_info<Map>(it)));
     }
     else {
         return nullptr;
@@ -438,12 +446,12 @@ inline T * get_ptr(
 
 // Searches the map for the key, if the key is found a copy of the object is returned,
 // else a new object is constructed (but not saved to the shared map)
-template <shared::storable T, typename Key>
+template <shared::storable T, typename Map, typename Key = typename Map::key_type>
 inline T get(
-    shared::map_type<Key> & mp, 
+    const Map & mp, 
     const std::type_identity_t<Key> & key
 ) {
-    T * ptr = shared::get_ptr<T>(mp, key);
+    const T * ptr = shared::get_ptr<const T>(mp, key);
     if(ptr != nullptr) {
         return *ptr;
     }
@@ -455,9 +463,9 @@ inline T get(
 // Searches the map for the key, if the key is found a reference to the object is returned,
 // else a new object is constructed
 // The reference is invalidated when the shared-var group is modified
-template <shared::storable T, typename Key>
+template <shared::storable T, typename Map, typename Key = typename Map::key_type>
 inline T & auto_get(
-    shared::map_type<Key> & mp, 
+    Map & mp, 
     const std::type_identity_t<Key> & key
 ) {
     // Try to find the var
@@ -481,7 +489,25 @@ inline T & auto_get(
     throw(std::runtime_error("<shared> auto_get failed to create var " + key));
 }
 
+// Searches the map for the key, if the key is found the value is set.
+template <shared::storable T, typename Map, typename Key = typename Map::key_type, shared::assignable_to<T> Value>
+inline void set(
+    const Map & mp, 
+    const std::type_identity_t<Key> & key,
+    Value && value
+) {
+    const T * ptr = shared::get_ptr<T>(mp, key);
+    if(ptr != nullptr) {
+        if constexpr(std::is_move_assignable<T>::value) {
+            *ptr = std::forward<T>(value);
+        }
+        else {
+            *ptr = value;
+        }
+    }
+}
+
 } // namespace shared
 
 
-#endif // FUNCTIONS_HPP
+#endif // SHARED_VAR_LIB__FUNCTIONS_HPP

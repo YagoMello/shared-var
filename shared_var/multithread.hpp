@@ -1,7 +1,8 @@
-#ifndef SHARED_VAR_LIB__SHARED_VAR_HPP
-#define SHARED_VAR_LIB__SHARED_VAR_HPP
+#ifndef SHARED_VAR_LIB__MULTITHREAD_HPP
+#define SHARED_VAR_LIB__MULTITHREAD_HPP
 
 /* Shared Variable Library
+ * Multithread
  * Author:  Yago T. de Mello
  * e-mail:  yago.t.mello@gmail.com
  * Version: 2.11.0 2022-07-09
@@ -22,14 +23,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "includes.hpp"
+#include "thread_safe_types.hpp"
 
-#include "types.hpp"
+#include "thread_safe_functions.hpp"
 
-#include "functions.hpp"
+#include "thread_safe_views.hpp"
 
-#include "views.hpp"
-
-#include "map_holder.hpp"
-
-#endif // SHARED_VAR_LIB__SHARED_VAR_HPP
+#endif // SHARED_VAR_LIB__MULTITHREAD_HPP

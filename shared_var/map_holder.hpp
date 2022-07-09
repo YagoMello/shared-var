@@ -1,11 +1,11 @@
-#ifndef MAP_HOLDER_HPP
-#define MAP_HOLDER_HPP
+#ifndef SHARED_VAR_LIB__MAP_HOLDER_HPP
+#define SHARED_VAR_LIB__MAP_HOLDER_HPP
 
 /* Shared Variable Library
  * Map holder
  * Author:  Yago T. de Mello
  * e-mail:  yago.t.mello@gmail.com
- * Version: 2.10.0 2022-07-02
+ * Version: 2.11.0 2022-07-09
  * License: Apache 2.0
  * C++20
  */
@@ -46,6 +46,8 @@ public:
     using storage_type = typename Map::storage_type;
     
 // ==== std::map types ====
+    
+    using key_type       = typename Map::key_type;
     
     using iterator       = typename Map::iterator;
     using const_iterator = typename Map::const_iterator;
@@ -116,4 +118,4 @@ private:
 } // namespace shared
 
 
-#endif // MAP_HOLDER_HPP
+#endif // SHARED_VAR_LIB__MAP_HOLDER_HPP

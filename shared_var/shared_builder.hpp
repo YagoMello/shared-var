@@ -1,11 +1,11 @@
-#ifndef SHARED_BUILDER_HPP
-#define SHARED_BUILDER_HPP
+#ifndef SHARED_VAR_LIB__SHARED_BUILDER_HPP
+#define SHARED_VAR_LIB__SHARED_BUILDER_HPP
 
 /* Shared Variable Library
  * Shared Builder
  * Author:  Yago T. de Mello
  * e-mail:  yago.t.mello@gmail.com
- * Version: 2.10.0 2022-07-02
+ * Version: 2.11.0 2022-07-09
  * License: Apache 2.0
  * C++20
  */
@@ -48,9 +48,9 @@ using builder_type = Base * (*)();
 // Deletes any variable with the same key but different type.
 // If a variable with the same key and types exists, the var_view_t
 // will point to the existing var and will not overwrite the value.
-template <typename Base, typename Derived = Base, typename Key>
+template <typename Base, typename Derived = Base, typename Map, typename Key = typename Map::key_type>
 inline shared::var_view_t<shared::builder_type<Base>, Key> make_builder(
-    shared::map_type<Key> & mp, 
+    Map & mp, 
     const std::type_identity_t<Key> & key
 ) {
     // Add the builder to the list
@@ -58,8 +58,8 @@ inline shared::var_view_t<shared::builder_type<Base>, Key> make_builder(
 }
 
 // If the object builder exists, build an object, otherwise returns a nullptr.
-template <typename Base, typename Key>
-inline Base * build(shared::map_type<Key> & mp, const std::type_identity_t<Key> & key) {
+template <typename Base, typename Map, typename Key = typename Map::key_type>
+inline Base * build(Map & mp, const std::type_identity_t<Key> & key) {
     // Find the builder
     shared::builder_type<Base> builder = shared::get<shared::builder_type<Base>>(mp, key);
     
@@ -74,18 +74,18 @@ inline Base * build(shared::map_type<Key> & mp, const std::type_identity_t<Key> 
 }
 
 // If the object builder exists, build an object, otherwise returns a nullptr.
-template <typename Base, typename Key>
-inline std::unique_ptr<Base> build_unique(shared::map_type<Key> & mp, const std::type_identity_t<Key> & key) {
+template <typename Base, typename Map, typename Key = typename Map::key_type>
+inline std::unique_ptr<Base> build_unique(Map & mp, const std::type_identity_t<Key> & key) {
     return std::unique_ptr<Base>(shared::build<Base>(mp, key));
 }
 
 // If the object builder exists, build an object, otherwise returns a nullptr.
-template <typename Base, typename Key>
-inline std::shared_ptr<Base> build_shared(shared::map_type<Key> & mp, const std::type_identity_t<Key> & key) {
+template <typename Base, typename Map, typename Key = typename Map::key_type>
+inline std::shared_ptr<Base> build_shared(Map & mp, const std::type_identity_t<Key> & key) {
     return std::shared_ptr<Base>(shared::build<Base>(mp, key));
 }
 
 } // namespace shared
 
 
-#endif // SHARED_BUILDER_HPP
+#endif // SHARED_VAR_LIB__SHARED_BUILDER_HPP
