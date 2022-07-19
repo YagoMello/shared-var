@@ -200,7 +200,7 @@ TODO (see file)
 |`obj_view_t<T, Map>`| Shared var abstraction, behaves as `obj*`      |`class<T, Map>             `|
 
 ## Var abstraction
-`class shared::var_view_t<T, Key>`
+`class shared::var_view_t<T, Map>`
 
 This class simplifies the shared var manipulation, behaving as the variable itself.
 | Function                  | Description                                                                                    | Returns               |
@@ -222,7 +222,7 @@ This class simplifies the shared var manipulation, behaving as the variable itse
 |`key_type                 `| Exposes the key type                                                                           | Type, `Key`           |
 |`value_type               `| Exposes the type of the shared var                                                             | Type, `T`             |
 
-`class shared::obj_view_t<T, Key>`
+`class shared::obj_view_t<T, Map>`
 
 This class simplifies the shared var manipulation, behaving as a (const) pointer to an object.
 | Function                  | Description                                                                                    | Returns               |
