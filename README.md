@@ -83,11 +83,11 @@ shared::bind(vars, 0, 1); // binding 0 and 1
 ### Sharing
 Different views of the same key have the same value, share the same memory:
 ```cpp
-auto cows = shared::make_var<int>(vars, "cows");
-auto dogs = shared::make_var<int>(vars, "cows"); // the var name still "cows"
+auto x = shared::make_var<int>(vars, "my-var");
+auto y = shared::make_var<int>(vars, "my-var"); // the var name still "my-var"
 
-cows = 5; // "cows" = 5 -> cows == 5 and dogs == 5
-dogs = 8; // "cows" = 8 -> cows == 8 and dogs == 8
+x = 5; // x == 5 and y == 5
+y = 8; // x == 8 and y == 8
 ```
 ```cpp
 // somewhere in the code
@@ -100,7 +100,7 @@ auto main_controller = shared::make_var<controller_t>(vars, "main-controller");
 ```
 
 ### Overriding
-Vars can be overriden with `shared::create` when `overwrite` is set to `true`, or by using `shared::make_var`:
+Vars can be overriden with `shared::create` when `overwrite` is set to `true`, or by using `shared::make_var`/`shared::make_obj`:
 ```cpp
 shared::create<int>(vars, "X", 42); // "X" = 42
 shared::create<int>(vars, "X", 84); // "X" = 42, because "X" is already initialized
@@ -183,6 +183,14 @@ To use shared builders, download `shared_builders.hpp` and `#include`.
 |`build<Base>(map, key)`| Builds an object of Derived type registered by `shared::make_builder` | `Base *` |
 |`build_unique<Base>(map, key)`| Builds an `std::unique_ptr<Base>` of Derived type registered by `shared::make_builder` | `std::unique_ptr<Base>` |
 |`build_shared<Base>(map, key)`| Builds an `std::shared_ptr<Base>` of Derived type registered by `shared::make_builder` | `std::shared_ptr<Base>` |
+
+**multithread.hpp**
+
+TODO (see file)
+
+**atomic_wrapper.hpp**
+
+TODO (see file)
 
 ## Types
 | Name               | Description                                    | Type                       |
