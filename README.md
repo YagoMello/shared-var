@@ -148,8 +148,6 @@ Download or clone this repo, move the `shared_var` folder to your project folder
 `shared_var/multithread.hpp`    -> Thread safe maps and operations (not the vars)\
 `shared_var/atomic_wrapper.hpp` -> Thread safe variables
 
-To use shared builders, download `shared_builders.hpp` and `#include`.
-
 ## Functions
 **shared_var.hpp**
 | Name                    | Description                                                                                    | Returns               |
@@ -208,14 +206,40 @@ This class simplifies the shared var manipulation, behaving as the variable itse
 | Function                  | Description                                                                                    | Returns               |
 |---------------------------|------------------------------------------------------------------------------------------------|-----------------------|
 |`var_view_t()             `| Constructs an un-bindable var, similar to a normal var                                         |                       |
-|`var_view_t(info_t<Key> * info)`| Constructs a bindable var, the constructor used by `shared::make_var`                          |                       |
-|`ref()                    `| Reference to the shared var data                                                               | `value_type &`        |
-|`operator value_type &()  `| Converts the object to (a reference of) the shared var                                         | `value_type &`        |
-|`operator =(const value_type & value)`| Assigns a value to the shared var                                                   | `value_type &`        |
-|`operator *               `|                                                                                                |                       |
-|`operator ->()            `| Access member functions of the shared var                                                      |                       |
+|`var_view_t(info_t<Key> * info)`| Constructs a bindable var, the constructor used by `shared::make_var`                     |                       |
+|`operator const value_type &() `| Converts the object to (a reference of) the shared var                                    | `var_view_t &`        |
+|`operator =(U && value)   `| Assigns a value to the shared var                                                              | `var_view_t &`        |
+|`init(map, key)           `|                                                                                                |                       |
+|`init(map, info*)         `|                                                                                                |                       |
+|`clone(const var_view_t & rhs) `|                                                                                           |                       |
 |`ptr()                    `| Get the shared var (data) pointer                                                              | `value_type *`        |
+|`ref()                    `| Reference to the shared var data                                                               | `value_type &`        |
+|`is_empty()               `|                                                                                                | `bool`                |
+|`clear()                  `|                                                                                                |  Nothing              |
 
 | Public member             | Description                                                                                    | Type                  |
 |---------------------------|------------------------------------------------------------------------------------------------|-----------------------|
+|`key_type                 `| Exposes the key type                                                                           | Type, `Key`           |
+|`value_type               `| Exposes the type of the shared var                                                             | Type, `T`             |
+
+`class shared::obj_view_t<T, Key>`
+
+This class simplifies the shared var manipulation, behaving as a (const) pointer to an object.
+| Function                  | Description                                                                                    | Returns               |
+|---------------------------|------------------------------------------------------------------------------------------------|-----------------------|
+|`obj_view_t()             `| Constructs an un-bindable var, similar to a normal var                                         |                       |
+|`obj_view_t(info_t<Key> * info)`| Constructs a bindable var, the constructor used by `shared::make_var`                     |                       |
+|`operator *               `|                                                                                                |                       |
+|`operator ->()            `| Access member functions of the shared var                                                      |                       |
+|`init(map, key)           `|                                                                                                |                       |
+|`init(map, info*)         `|                                                                                                |                       |
+|`clone(const var_view_t & rhs) `|                                                                                           |                       |
+|`ref()                    `| Reference to the shared var data                                                               | `value_type &`        |
+|`ptr()                    `| Get the shared var (data) pointer                                                              | `value_type *`        |
+|`is_empty()               `|                                                                                                | `bool`                |
+|`clear()                  `|                                                                                                |  Nothing              |
+
+| Public member             | Description                                                                                    | Type                  |
+|---------------------------|------------------------------------------------------------------------------------------------|-----------------------|
+|`key_type                 `| Exposes the key type                                                                           | Type, `Key`           |
 |`value_type               `| Exposes the type of the shared var                                                             | Type, `T`             |
