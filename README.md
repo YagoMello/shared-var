@@ -196,7 +196,7 @@ TODO (see file)
 | Name               | Description                                    | Type                       |
 |--------------------|------------------------------------------------|----------------------------|
 |`info_t<Key>       `| Stores information about the shared var        |`struct<Key>               `|
-|`map_type<Key>     `| Maps `key` to `info_t<Key>`                    |`std::map<Key, info_t<Key>>`|
+|`map_type<Key>     `| Maps `key` to `info_t<Key>`                    |`shared::var_map_t<Key>    `|
 |`bind_codes_t      `| Result of `shared::bind(map, key1, key2)`      |`enum : uint_fast8_t       `|
 |`var_view_t<T, Map>`| Shared var abstraction, behaves as `T`         |`class<T, Map>             `|
 |`obj_view_t<T, Map>`| Shared var abstraction, behaves as `obj*`      |`class<T, Map>             `|
