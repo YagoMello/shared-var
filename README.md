@@ -228,12 +228,12 @@ This class simplifies the shared var manipulation, behaving as a (const) pointer
 | Function                  | Description                                                                                    | Returns               |
 |---------------------------|------------------------------------------------------------------------------------------------|-----------------------|
 |`obj_view_t()             `| Constructs an un-bindable var, similar to a normal var                                         |                       |
-|`obj_view_t(info_t<Key> * info)`| Constructs a bindable var, the constructor used by `shared::make_var`                     |                       |
+|`obj_view_t(info_t<Key> * info)`| Constructs a bindable var, the constructor used by `shared::make_obj`                     |                       |
 |`operator *               `|                                                                                                |                       |
 |`operator ->()            `| Access member functions of the shared var                                                      |                       |
 |`init(map, key)           `|                                                                                                |                       |
 |`init(map, info*)         `|                                                                                                |                       |
-|`clone(const var_view_t & rhs) `|                                                                                           |                       |
+|`clone(const obj_view_t & rhs) `|                                                                                           |                       |
 |`ref()                    `| Reference to the shared var data                                                               | `value_type &`        |
 |`ptr()                    `| Get the shared var (data) pointer                                                              | `value_type *`        |
 |`is_empty()               `|                                                                                                | `bool`                |
