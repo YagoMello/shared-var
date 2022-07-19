@@ -6,7 +6,7 @@
 C++ 20 Header-Only library for high-performance generic maps with binding capabilities.
 
 ### One map, many data types
-A shared var list can hold any data type:
+A shared var map can hold any data type:
 ```cpp
 shared::create<float>(vars, "average temperature", 22.5f); // a float named average temperature
 shared::create<unsigned int>(vars, "average presure", 101200U); // an unsigned int named average pressure
@@ -23,8 +23,8 @@ uint8_t pairs = players / 2; // pairs = 5
 And they also auto-refresh:
 ```cpp
 auto btn = shared::make_var<bool>(window, "ok_btn"); // accessing a GUI object
-if(btn) { // the var is updated in real time, because it *is* the same var
-  ...
+while(!btn); // the var is updated in real time, because it *is* the same var
+// ...
 ```
 
 ### Variable binding
@@ -72,7 +72,7 @@ shared::unbind(vars, "2", "3");
 ### Generic keys
 Anything comparable (<, >, ==) can be used as key:
 ```cpp
-shared::list_type<int> vars; // using *int* as key type
+shared::map_type<int> vars; // using *int* as key type
 
 shared::create<someobj>(vars, 0); // key = 0
 shared::create<someobj>(vars, 1); // key = 1
@@ -93,7 +93,7 @@ dogs = 8; // "cows" = 8 -> cows == 8 and dogs == 8
 // somewhere in the code
 auto controller = shared::make_var<controller_t>(vars, "main-controller");
 ...
-// in other file, function                            The same *vars* list
+// in other file, function                            The same *vars* map
 //                                                    vvvv
 auto main_controller = shared::make_var<controller_t>(vars, "main-controller");
 // Both controller and main_controller refer to the same variable (same memory address).
@@ -123,8 +123,8 @@ Builders are useful for dynamically creatign polymorphic objects based on user i
 // class bus_t : public vehicle_t {...};
 // ...
 // 
-// and the shared var list
-// shared::list_type<std::string> vehicles;
+// and the shared var map
+// shared::map_type<std::string> vehicles;
 // ...
 
 // somewhere in the code, create the builders
@@ -141,45 +141,57 @@ std::shared_ptr<vehicle_t> shared_bus = shared::build_shared<vehicle_t>(vehicles
 
 # How
 ## Installation
-Download `shared_var.hpp`, move the file to your project folder and `#include`.
+Download or clone this repo, move the `shared_var` folder to your project folder and `#include` the files:
+
+`shared_var/shared_var.hpp`     -> Core features (Types, Functions, Views)\
+`shared_var/shared_builder.hpp` -> Builders\
+`shared_var/multithread.hpp`    -> Thread safe maps and operations (not the vars)\
+`shared_var/atomic_wrapper.hpp` -> Thread safe variables
 
 To use shared builders, download `shared_builders.hpp` and `#include`.
 
 ## Functions
 **shared_var.hpp**
-| Name                     | Description                                                                                    | Returns               |
-|--------------------------|------------------------------------------------------------------------------------------------|-----------------------|
-|`create<T>(list, key, value = T(), overwrite = false)`| Creates a new var with key `key` and value `value`. `overwrite` allows the var to change type. | Pointer to new `info` |
-|`bind(list, key1, key2)  `| Binds vars `key1` and `key2`                                                                   | Bind status code      |
-|`unbind(list, key1, key2)`| Unbinds vars `key1` and `key2`                                                                 | Nothing               |
-|`unbind_all(list)        `| Unbinds every var in the list `list`                                                           | Nothing               |
-|`remove(list, key)       `| Removes the var `key` from the list                                                            | Nothing               |
-|`remove_all(list)        `| Removes every var from the list `list`                                                         | Nothing               |
-|`isolate(list, key)      `| Removes every bind of `key`                                                                    | Nothing               |
-|`contains(list, key)     `| True if `list` contains key `key`                                                              | `true` or `false`     |
-|`get_ptr<T>(list, key)   `| Pointer to shared-var data, if var doesnt exist returns a nullptr                              | `T *`                 |
-|`get<T>(list, key)       `| Copy of shared-var data, if var doesnt exist one is default constructed                        | `T`                   |
-|`auto_get<T>(list, key)  `| Reference to shared-var data, if var doesnt exist creates a new var, if fails to create throws | `T &`                 |
-|`make_var<T>(list, key, value = T())`| Returns a view of the var. Creates a new var if necessary. Deletes any variable with the same key but different type. | `var_t<T, Key>`|
+| Name                    | Description                                                                                    | Returns               |
+|-------------------------|------------------------------------------------------------------------------------------------|-----------------------|
+|`create<T>(map, key, value = T(), overwrite = false)`| Creates a new var with key `key` and value `value`. `overwrite` allows the var to change type. | Pointer to new `info` |
+|`copy(mp_src, mp_dest, key_src, key_dest, overwrite)`| Copies a variable from the src map to the dest map                 | Pointer to `dest` info|
+|`copy(map, key_src, key_dest, overwrite)`| Copies a var from the same map                                                 | Pointer to `dest` info|
+|`bind(map, key1, key2)  `| Binds vars `key1` and `key2`                                                                   | Bind status code      |
+|`unbind(map, key1, key2)`| Unbinds vars `key1` and `key2`                                                                 | Nothing               |
+|`unbind_all(map)        `| Unbinds every var in the map `map`                                                             | Nothing               |
+|`remove(map, key)       `| Removes the var `key` from the map                                                             | Nothing               |
+|`remove_all(map)        `| Removes every var from the map `map`                                                           | Nothing               |
+|`isolate(map, key)      `| Removes every bind of `key`                                                                    | Nothing               |
+|`exists(map, key)       `| Finds whether an element with the given key and type exists                                    | exists_t value        |
+|`contains(map, key)     `| Finds whether an element with the given key and type exists                                    | `true` or `false`     |
+|`contains_key(map, key) `| True if `map` contains key `key`                                                               | `true` or `false`     |
+|`get_ptr<T>(map, key)   `| Pointer to shared-var data, if var doesnt exist returns a nullptr                              | `T *`                 |
+|`get<T>(map, key)       `| Copy of shared-var data, if var doesnt exist one is default constructed                        | `T`                   |
+|`set<T>(map, key, value)`| Searches the map for the key, if the key is found the value is set                             | Nothing               |
+|`auto_get<T>(map, key)  `| Reference to shared-var data, if var doesnt exist creates a new var, if fails to create throws | `T &`                 |
+|`make_var<T>(map, key, value = T())`| Returns a view of the var. Creates a new var if necessary. Deletes any variable with the same key but different type. | `var_view_t<T, Map>`|
+|`make_obj<T>(map, key, value = T())`| Returns a view of the var. Creates a new var if necessary. Deletes any variable with the same key but different type. | `obj_view_t<T, Map>`|
 <!--- |`make_func<FuncPtr, Key> `| Returns a view of the (func) var. Creates a new var if necessary. Deletes any variable with the same key but different type. | Func View | -->
-<!--- |`get_func<FuncPtr>(list, key)`| Returns the function pointer | `FuncPtr` | -->
-<!--- |`call<FuncPtr>(list, key, args...)`| Calls the function, returns the value returned by the function. | Varies | -->
+<!--- |`get_func<FuncPtr>(map, key)`| Returns the function pointer | `FuncPtr` | -->
+<!--- |`call<FuncPtr>(map, key, args...)`| Calls the function, returns the value returned by the function. | Varies | -->
 
 **shared_builder.hpp**
 | Name                     | Description                                                                                    | Returns               |
 |--------------------------|------------------------------------------------------------------------------------------------|-----------------------|
-|`make_builder<Base, Derived>(list, key)`| Returns a view of the builder. Creates a new builder if necessary. Overrides builders with the same key. | Builder View |
-|`build<Base>(list, key)`| Builds an object of Derived type registered by `shared::make_builder` | `Base *` |
-|`build_unique<Base>(list, key)`| Builds an `std::unique_ptr<Base>` of Derived type registered by `shared::make_builder` | `std::unique_ptr<Base>` |
-|`build_shared<Base>(list, key)`| Builds an `std::shared_ptr<Base>` of Derived type registered by `shared::make_builder` | `std::shared_ptr<Base>` |
+|`make_builder<Base, Derived>(map, key)`| Returns a view of the builder. Creates a new builder if necessary. Overrides builders with the same key. | Builder View |
+|`build<Base>(map, key)`| Builds an object of Derived type registered by `shared::make_builder` | `Base *` |
+|`build_unique<Base>(map, key)`| Builds an `std::unique_ptr<Base>` of Derived type registered by `shared::make_builder` | `std::unique_ptr<Base>` |
+|`build_shared<Base>(map, key)`| Builds an `std::shared_ptr<Base>` of Derived type registered by `shared::make_builder` | `std::shared_ptr<Base>` |
 
 ## Types
-| Name               | Description                                     | Type                       |
-|--------------------|-------------------------------------------------|----------------------------|
-|`info_t<Key>       `| Stores information about the shared var         |`struct<Key>               `|
-|`list_type<Key>    `| Maps `key` to `info_t<Key>`                     |`std::map<Key, info_t<Key>>`|
-|`bind_codes_t      `| Result of `shared::bind(list, key1, key2)`      |`enum : uint_fast8_t       `|
-|`var_view_t<T, Key>`| Shared var abstraction, behaves as `T`     |`class<T, Key>             `|
+| Name               | Description                                    | Type                       |
+|--------------------|------------------------------------------------|----------------------------|
+|`info_t<Key>       `| Stores information about the shared var        |`struct<Key>               `|
+|`map_type<Key>     `| Maps `key` to `info_t<Key>`                    |`std::map<Key, info_t<Key>>`|
+|`bind_codes_t      `| Result of `shared::bind(map, key1, key2)`      |`enum : uint_fast8_t       `|
+|`var_view_t<T, Map>`| Shared var abstraction, behaves as `T`         |`class<T, Map>             `|
+|`obj_view_t<T, Map>`| Shared var abstraction, behaves as `obj*`      |`class<T, Map>             `|
 
 ## Var abstraction
 `class shared::var_view_t<T, Key>`
