@@ -179,7 +179,9 @@ concept storable =
 
 template <typename From, typename To>
 concept assignable_to = requires (From from, To to) {to = from;};
-    
+
+template <typename Key>
+using snapshot_t = std::vector<shared::info_t<Key>>;
 
 } // namespace shared
 

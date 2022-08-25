@@ -133,8 +133,9 @@ public:
         using lock_type = typename Map::write_guard_type;
         lock_type lock(map_->mutex());
         
+        // If move operations are available, use them
         if constexpr(std::is_move_assignable<T>::value) {
-            *data_ptr_ = std::forward<T>(value);
+            *data_ptr_ = std::forward<Value>(value);
         }
         else {
             *data_ptr_ = value;
@@ -154,7 +155,11 @@ public:
     
 // ==== var initialization ====
     
-    shared::thread_safe::ts_var_view_t<T, Map> & init(Map & mp, const std::type_identity_t<Key> & key) {
+    // HOLY FOCA IEARGIAPSDJFVPAWSODEJFVAWSPO:IJDFVWPSODIKJVFMWSDPEOIGFJAWSEFD FIXME FIXME FIXME CRAP
+    // map_ may be different of mp.
+    // how to fix this!!!!!!! DAMN
+    // its 5am I better get some sleep
+    shared::thread_safe::ts_var_view_t<T, Map> & init(Map & mp, const Key & key) {
         // Atomic write
         using lock_type = typename Map::write_guard_type;
         lock_type lock(map_->mutex());
@@ -226,7 +231,7 @@ public:
         
         // If move operations are available, use them
         if constexpr(std::is_move_assignable<T>::value) {
-            *data_ptr_ = std::forward<T>(value);
+            *data_ptr_ = std::forward<Value>(value);
         }
         else {
             *data_ptr_ = value;

@@ -59,7 +59,9 @@ public:
     }
     
     // Always needs to unsubscribe, moving is not an option.
-    var_view_t(shared::var_view_t<T, Map> && src) = delete;
+    var_view_t(shared::var_view_t<T, Map> && src) {
+        this->clone(src);
+    }
     
     // Create an optimized var.
     var_view_t(Map & mp, const std::type_identity_t<Key> & key) {
@@ -84,7 +86,11 @@ public:
     }
     
     // Always needs to unsubscribe, moving is not an option.
-    var_view_t<T, Map> & operator =(shared::var_view_t<T, Map> && rhs) = delete;
+    // Just doing the same as copying.
+    var_view_t<T, Map> & operator =(shared::var_view_t<T, Map> && rhs) {
+        *data_ptr_ = *rhs.data_ptr_;
+        return *this;
+    }
     
     // Assign a value to the variable
     template <shared::assignable_to<T> Value>
@@ -92,7 +98,8 @@ public:
         
         // If move operations are available, use them
         if constexpr(std::is_move_assignable<T>::value) {
-            *data_ptr_ = std::forward<T>(value);
+            // The static cast forces the conversion operator of objects
+            *data_ptr_ = std::forward<Value>(value);
         }
         else {
             *data_ptr_ = value;
@@ -118,20 +125,6 @@ public:
     
 // ==== var initialization ====
     
-    shared::var_view_t<T, Map> & init(Map & mp, const std::type_identity_t<Key> & key) {
-        // Self destruct
-        this->unsubscribe();
-        
-        // Copy all members
-        data_ptr_ = shared::get_ptr<T>(mp, key);
-        map_      = &mp;
-        key_      = key;
-        
-        // Then subscribe
-        this->subscribe();
-        return *this;
-    }
-    
     shared::var_view_t<T, Map> & init(Map & mp, shared::info_t<Key> * info) {
         // Self destruct
         this->unsubscribe();
@@ -143,6 +136,16 @@ public:
         
         // Then subscribe
         this->subscribe();
+        return *this;
+    }
+    
+    shared::var_view_t<T, Map> & init(Map & mp, const Key & key, T value = T()) {
+        // Try to create the var
+        shared::info_t<Key> * info = shared::create<T>(mp, key, std::move(value));
+        
+        // Init this view with the var creation info
+        this->init(mp, info);
+        
         return *this;
     }
     
@@ -236,7 +239,9 @@ public:
     }
     
     // Always needs to unsubscribe, moving is not an option.
-    obj_view_t(shared::obj_view_t<T, Map> && src) = delete;
+    obj_view_t(shared::obj_view_t<T, Map> && src) {
+        this->clone(src);
+    }
     
     // Create an optimized var.
     obj_view_t(Map & mp, const std::type_identity_t<Key> & key) {
@@ -261,7 +266,11 @@ public:
     }
     
     // Always needs to unsubscribe, moving is not an option.
-    obj_view_t<T, Map> & operator =(shared::obj_view_t<T, Map> && rhs) = delete;
+    // Just doing the same as copying.
+    obj_view_t<T, Map> & operator =(shared::obj_view_t<T, Map> && rhs) {
+        *data_ptr_ = *rhs.data_ptr_;
+        return *this;
+    }
     
     // Assign a value to the variable
     template <shared::assignable_to<T> Value>
@@ -269,7 +278,7 @@ public:
         
         // If move operations are available, use them
         if constexpr(std::is_move_assignable<T>::value) {
-            *data_ptr_ = std::forward<T>(value);
+            *data_ptr_ = std::forward<Value>(value);
         }
         else {
             *data_ptr_ = value;
@@ -310,20 +319,6 @@ public:
     
 // ==== var initialization ====
     
-    shared::obj_view_t<T, Map> & init(Map & mp, const std::type_identity_t<Key> & key) {
-        // Self destruct
-        this->unsubscribe();
-        
-        // Copy all members
-        data_ptr_ = shared::get_ptr<T>(mp, key);
-        map_      = &mp;
-        key_      = key;
-        
-        // Then subscribe
-        this->subscribe();
-        return *this;
-    }
-    
     shared::obj_view_t<T, Map> & init(Map & mp, shared::info_t<Key> * info) {
         // Self destruct
         this->unsubscribe();
@@ -335,6 +330,16 @@ public:
         
         // Then subscribe
         this->subscribe();
+        return *this;
+    }
+    
+    shared::obj_view_t<T, Map> & init(Map & mp, const Key & key, T value = T()) {
+        // Try to create the var
+        shared::info_t<Key> * info = shared::create<T>(mp, key, std::move(value));
+        
+        // Init this view with the var creation info
+        this->init(mp, info);
+        
         return *this;
     }
     

@@ -56,4 +56,7 @@ limitations under the License.
 // std::forward, used in many places to forward args
 #include <utility>
 
+// snapshots are stored in a std::vector
+#include <vector>
+
 #endif // SHARED_VAR_LIB__INCLUDES_HPP

@@ -272,6 +272,37 @@ inline void unsubscribe_view(
     }
 }
 
+// Creates an info with the same parameters, key and value (on newly allocated memory)
+template <typename Key>
+inline shared::info_t<Key> clone_info(
+    const shared::info_t<Key> & old_info
+) {
+    // The new var data
+    shared::info_t<Key> new_info;
+    
+    // Copy almost everything from the input var,
+    // except the refs.
+    new_info.group_id  = old_info.group_id;
+    new_info.type_id   = old_info.type_id;
+    new_info.key       = old_info.key;
+    new_info.allocator = old_info.allocator;
+    new_info.copier    = old_info.copier;
+    
+    // Allocate new memory but keep the value
+    shared::impl::allocate_and_notify_subscribers(new_info, old_info.ptr.get());
+    
+    return new_info;
+}
+
+template <typename Key>
+inline void disconnect_subscribers(
+    const shared::info_t<Key> & info
+) {
+    for(void ** var_ptr_ptr : info.pointers_to_var) {
+        *var_ptr_ptr = nullptr;
+    }
+}
+
 } // namespace shared::impl 
 
 

@@ -492,17 +492,74 @@ inline T & auto_get(
 // Searches the map for the key, if the key is found the value is set.
 template <shared::storable T, typename Map, typename Key = typename Map::key_type, shared::assignable_to<T> Value>
 inline void set(
-    const Map & mp, 
+    Map & mp, 
     const std::type_identity_t<Key> & key,
     Value && value
 ) {
-    const T * ptr = shared::get_ptr<T>(mp, key);
+    T * ptr = shared::get_ptr<T>(mp, key);
     if(ptr != nullptr) {
         if constexpr(std::is_move_assignable<T>::value) {
             *ptr = std::forward<T>(value);
         }
         else {
             *ptr = value;
+        }
+    }
+}
+
+// Creates a representation of the map to allow undo-ing changes.
+template <typename Map, typename Key = typename Map::key_type>
+inline std::vector<shared::info_t<Key>> snapshot(const Map & mp) {
+    std::vector<shared::info_t<Key>> data;//(mp.size());
+    
+    // Save the info to the data vector, with new storage and no subscribers
+    for(const auto & [key, info] : mp) {
+        data.push_back(shared::impl::clone_info(info));
+    }
+    
+    return data;
+}
+
+// Restores the map to the state it was when the restoration data was created.
+// Topology changes may break views:
+// Views of undo-ed vars may become dangling.
+// Re-created vars don't have connections with their old views.
+// Existing vars retain their views, updating only the value.
+template <typename Map, typename Key = typename Map::key_type>
+inline void restore(
+    Map & mp, 
+    std::vector<shared::info_t<Key>> data
+) {
+    // For every info saved to "data"
+    for(shared::info_t<Key> & info_src : data) {
+        // Check if exists a var with the same key in the new map
+        auto it_dest = mp.find(info_src.key);
+        
+        if(it_dest != mp.end()) {
+            // The key exists, but maybe the types are different
+            shared::info_t<Key> & info_dest = shared::impl::iter_to_info<Map>(it_dest);
+            
+            if(info_src.type_id == info_dest.type_id) {
+                // The types are equal, so the var still exists, lets restore the original value
+                void * src_ptr  = info_src.ptr.get();
+                void * dest_ptr = info_dest.ptr.get();
+                
+                info_src.copier(dest_ptr, src_ptr);
+            }
+            else {
+                // A new var has overwriten the old one
+                
+                // Lets disconnect the var subscribers
+                shared::impl::disconnect_subscribers(info_dest);
+                
+                // And overwrite the existing var with the original var
+                info_dest = shared::impl::clone_info(info_src);
+            }
+        }
+        else {
+            // The var was removed!
+            // Lets re-create it
+            mp[info_src.key] = shared::impl::clone_info(info_src);
         }
     }
 }

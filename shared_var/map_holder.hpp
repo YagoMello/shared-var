@@ -112,7 +112,7 @@ public:
     */
     
 private:
-    Map * map_;
+    Map * map_ = nullptr;
 };
 
 } // namespace shared
